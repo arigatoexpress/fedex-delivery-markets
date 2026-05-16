@@ -1,0 +1,17 @@
+services:
+  delivery-markets:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    ports:
+      - "4747:4747"
+    environment:
+      NODE_ENV: production
+      DELIVERY_MARKETS_DATA_DIR: /var/data/delivery-markets
+      DELIVERY_MARKETS_ADMIN_TOKEN: ${DELIVERY_MARKETS_ADMIN_TOKEN:-}
+      ORACLE_SIGNER_ADDRESS: ${ORACLE_SIGNER_ADDRESS:-}
+    volumes:
+      - delivery-markets-data:/var/data
+
+volumes:
+  delivery-markets-data:

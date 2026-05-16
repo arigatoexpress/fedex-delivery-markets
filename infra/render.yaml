@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: fedex-delivery-markets-api
+    runtime: node
+    plan: starter
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DELIVERY_MARKETS_ADMIN_TOKEN
+        sync: false
+      - key: ORACLE_SIGNER_ADDRESS
+        sync: false
+      - key: DELIVERY_MARKETS_DATA_DIR
+        value: /var/data/delivery-markets
+    disk:
+      name: delivery-markets-ledger
+      mountPath: /var/data
+      sizeGB: 1
