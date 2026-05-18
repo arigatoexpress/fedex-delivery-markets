@@ -9,6 +9,8 @@ import type {
 } from "../shared/types";
 import { sha256, shortHash } from "./hash";
 
+export const DEMO_MARKET_AS_OF = new Date("2026-05-16T20:00:00.000Z");
+
 const DATE_FORMAT = new Intl.DateTimeFormat("en-US", {
   weekday: "short",
   month: "short",
@@ -35,7 +37,7 @@ export function getShipmentOrThrow(trackingNumber: string): Shipment {
 
 export function buildMarketBundle(
   trackingNumber: string,
-  asOf = new Date()
+  asOf = DEMO_MARKET_AS_OF
 ): DeliveryMarketBundle {
   const shipment = getShipmentOrThrow(trackingNumber);
   const cutoff = getCutoff(shipment, asOf);
@@ -61,7 +63,7 @@ export function buildMarketBundle(
 
 export function getCutoff(
   shipment: Shipment,
-  asOf = new Date()
+  asOf = DEMO_MARKET_AS_OF
 ): DeliveryMarketBundle["cutoff"] {
   const hubEvent = shipment.events.find((event) => event.code === "HUB_ARRIVAL");
   const cutoffAt = hubEvent?.timestamp ?? shipment.projectedHubArrivalAt;
@@ -85,7 +87,7 @@ export function getCutoff(
 export function buildMarkets(
   shipment: Shipment,
   status: MarketStatus,
-  asOf = new Date()
+  asOf = DEMO_MARKET_AS_OF
 ): DeliveryMarket[] {
   const trackingNumberHash = sha256(shipment.trackingNumber);
   const etaStart = new Date(shipment.etaWindowStart);
