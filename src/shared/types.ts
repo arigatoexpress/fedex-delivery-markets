@@ -96,6 +96,19 @@ export interface PaperOrder {
   createdAt: string;
 }
 
+export interface PublicPaperOrder {
+  id: string;
+  marketId: string;
+  side: OrderSide;
+  contracts: number;
+  limitPrice: number;
+  notionalUsd: number;
+  status: "ACCEPTED" | "BLOCKED";
+  reason: string;
+  environment: "paper";
+  createdAt: string;
+}
+
 export type ParticipantRole =
   | "recipient"
   | "shipper"
@@ -158,6 +171,19 @@ export interface StoreSnapshot {
   lastOrderId?: string;
   lastOracleEventHash?: string;
   dataDir: string;
+  maxRecords: number;
+}
+
+export interface SecurityPosture {
+  adminAuthMode: "token" | "locked" | "dev-open";
+  oracleMode: "signed" | "locked" | "fixture-dev";
+  adminRoutesFailClosed: boolean;
+  oracleEventsRequireSignature: boolean;
+  publicLedgerRedacted: boolean;
+  rejectedOrdersPersisted: boolean;
+  rateLimitsEnabled: boolean;
+  bodyLimitBytes: number;
+  securityHeadersEnabled: boolean;
 }
 
 export interface IntegrationReadiness {

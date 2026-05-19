@@ -22,8 +22,9 @@ import type {
   DeliveryMarketBundle,
   IntegrationReadiness,
   OrderSide,
-  PaperOrder,
-  ResearchReference
+  PublicPaperOrder,
+  ResearchReference,
+  SecurityPosture
 } from "./shared/types";
 
 type ReadinessResponse = {
@@ -35,6 +36,7 @@ type ReadinessResponse = {
   liveOrderRoutingAllowed: boolean;
   liveFedExApiAllowed: boolean;
   liveOrderSigningAllowed: boolean;
+  securityPosture: SecurityPosture;
   integrations: IntegrationReadiness[];
   blockers: string[];
 };
@@ -53,7 +55,7 @@ export default function App() {
   const [bundle, setBundle] = useState<DeliveryMarketBundle | null>(null);
   const [readiness, setReadiness] = useState<ReadinessResponse | null>(null);
   const [research, setResearch] = useState<ResearchResponse | null>(null);
-  const [ledger, setLedger] = useState<PaperOrder[]>([]);
+  const [ledger, setLedger] = useState<PublicPaperOrder[]>([]);
   const [selectedMarketId, setSelectedMarketId] = useState<string | null>(null);
   const [contracts, setContracts] = useState(5);
   const [orderSide, setOrderSide] = useState<OrderSide>("YES");
@@ -67,7 +69,7 @@ export default function App() {
       ),
       fetchJson<ReadinessResponse>("/api/readiness").then(setReadiness),
       fetchJson<ResearchResponse>("/api/research").then(setResearch),
-      fetchJson<{ orders: PaperOrder[] }>("/api/ledger").then((data) => setLedger(data.orders))
+      fetchJson<{ orders: PublicPaperOrder[] }>("/api/ledger").then((data) => setLedger(data.orders))
     ]);
   }, []);
 
@@ -118,7 +120,10 @@ export default function App() {
         contracts
       })
     });
-    const payload = (await response.json()) as { order: PaperOrder; ledger: PaperOrder[] };
+    const payload = (await response.json()) as {
+      order: PublicPaperOrder;
+      ledger: PublicPaperOrder[];
+    };
     setLedger(payload.ledger);
     setNotice(payload.order.reason);
   }
@@ -201,6 +206,30 @@ export default function App() {
             {loading ? "Refreshing" : bundle?.cutoff.status ?? "OPEN"}
           </div>
         </header>
+
+        <section className="security-band">
+          <div>
+            <p className="eyebrow">Security Remediation</p>
+            <h3>Critical audit controls are now fail-closed</h3>
+          </div>
+          <div className="security-grid">
+            <SecurityBadge
+              label="Admin"
+              value={formatAdminMode(readiness?.securityPosture.adminAuthMode)}
+              state={readiness?.securityPosture.adminAuthMode === "dev-open" ? "warn" : "pass"}
+            />
+            <SecurityBadge
+              label="Oracle"
+              value={formatOracleMode(readiness?.securityPosture.oracleMode)}
+              state={readiness?.securityPosture.oracleMode === "fixture-dev" ? "warn" : "pass"}
+            />
+            <SecurityBadge
+              label="Ledger"
+              value={readiness?.securityPosture.publicLedgerRedacted ? "Redacted" : "Raw"}
+              state={readiness?.securityPosture.publicLedgerRedacted ? "pass" : "warn"}
+            />
+          </div>
+        </section>
 
         {bundle ? (
           <>
@@ -382,14 +411,29 @@ export default function App() {
           </div>
           <div className="control-list">
             <ControlRow
-              label="Admin token"
-              value={readiness?.adminAuthConfigured ? "Configured" : "Local dev open"}
-              status={readiness?.adminAuthConfigured ? "pass" : "warn"}
+              label="Admin routes"
+              value={formatAdminMode(readiness?.securityPosture.adminAuthMode)}
+              status={readiness?.securityPosture.adminAuthMode === "dev-open" ? "warn" : "pass"}
             />
             <ControlRow
-              label="Oracle signer"
-              value={readiness?.oracleSignerConfigured ? "Configured" : "Fixture mode"}
-              status={readiness?.oracleSignerConfigured ? "pass" : "warn"}
+              label="Oracle intake"
+              value={formatOracleMode(readiness?.securityPosture.oracleMode)}
+              status={readiness?.securityPosture.oracleMode === "fixture-dev" ? "warn" : "pass"}
+            />
+            <ControlRow
+              label="Public ledger"
+              value={readiness?.securityPosture.publicLedgerRedacted ? "Redacted" : "Raw"}
+              status={readiness?.securityPosture.publicLedgerRedacted ? "pass" : "warn"}
+            />
+            <ControlRow
+              label="Rejected orders"
+              value={readiness?.securityPosture.rejectedOrdersPersisted ? "Persisted" : "Not persisted"}
+              status={readiness?.securityPosture.rejectedOrdersPersisted ? "warn" : "pass"}
+            />
+            <ControlRow
+              label="Rate limits"
+              value={readiness?.securityPosture.rateLimitsEnabled ? "Enabled" : "Missing"}
+              status={readiness?.securityPosture.rateLimitsEnabled ? "pass" : "warn"}
             />
             <ControlRow
               label="Live order signing"
@@ -521,6 +565,23 @@ function PriceTile({ label, price }: { label: string; price: number }) {
   );
 }
 
+function SecurityBadge({
+  label,
+  value,
+  state
+}: {
+  label: string;
+  value: string;
+  state: "pass" | "warn";
+}) {
+  return (
+    <div className={`security-badge ${state}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
 function ControlRow({
   label,
   value,
@@ -536,6 +597,18 @@ function ControlRow({
       <strong className={status}>{value}</strong>
     </div>
   );
+}
+
+function formatAdminMode(mode?: SecurityPosture["adminAuthMode"]): string {
+  if (mode === "token") return "Token required";
+  if (mode === "dev-open") return "Dev override";
+  return "Fail-closed";
+}
+
+function formatOracleMode(mode?: SecurityPosture["oracleMode"]): string {
+  if (mode === "signed") return "Signed only";
+  if (mode === "fixture-dev") return "Fixture override";
+  return "Fail-closed";
 }
 
 async function fetchJson<T>(url: string): Promise<T> {

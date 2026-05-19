@@ -1,19 +1,31 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { z } from "zod";
 import { buildMarketBundle, listDemoTrackingNumbers } from "../domain/deliveryMarkets";
 import { createPaperOrder, orderRequestSchema } from "../domain/orders";
-import { buildOracleEventRecord, signedOracleEventRequestSchema } from "../domain/oracle";
+import {
+  buildOracleEventRecord,
+  oracleSignatureRequired,
+  signedOracleEventRequestSchema
+} from "../domain/oracle";
 import { evaluateParticipantRisk, participantProfileSchema } from "../domain/risk";
 import { getIntegrationReadiness, getResearchReferences } from "../adapters/readiness";
-import { adminAuthConfigured, requireAdmin } from "./auth";
-import { createPilotStore, type PilotStore } from "./store";
+import { adminAuthConfigured, adminAuthMode, requireAdmin } from "./auth";
+import { createPilotStore, toPublicOrder, type PilotStore } from "./store";
 import { installStaticRoutes } from "./static";
+import { parseLimitedJson, DEFAULT_JSON_BODY_LIMIT_BYTES } from "./request";
+import { rateLimit } from "./rateLimit";
+import { securityHeaders } from "./securityHeaders";
+
+const trackingOnlySchema = z.object({ trackingNumber: z.string().min(8) });
 
 export function createApp(options: { store?: PilotStore; serveStatic?: boolean } = {}) {
   const app = new Hono();
   const store = options.store ?? createPilotStore();
 
+  app.use("*", securityHeaders());
   app.use("*", cors({ origin: ["http://127.0.0.1:5178", "http://localhost:5178"] }));
+  app.use("/api/*", rateLimit({ windowMs: 60_000, max: 60 }));
 
   app.get("/health", (c) =>
     c.json({
@@ -25,7 +37,7 @@ export function createApp(options: { store?: PilotStore; serveStatic?: boolean }
       liveMoneyMovementAllowed: false,
       liveFedExApiAllowed: false,
       liveOrderSigningAllowed: false,
-      store: store.snapshot(),
+      store: store.publicSnapshot(),
       timestamp: new Date().toISOString()
     })
   );
@@ -49,52 +61,69 @@ export function createApp(options: { store?: PilotStore; serveStatic?: boolean }
   });
 
   app.post("/api/orders", async (c) => {
-    const body = await c.req.json().catch(() => undefined);
-    const parsed = orderRequestSchema.safeParse(body);
-    if (!parsed.success) {
-      return c.json(
-        {
-          error: "Invalid paper order request",
-          details: parsed.error.flatten()
-        },
-        400
-      );
+    const parsed = await parseLimitedJson(c, orderRequestSchema);
+    if (!parsed.ok) {
+      return c.json(parsed.payload, parsed.status);
     }
 
     const bundle = buildMarketBundle(parsed.data.trackingNumber);
     const order = createPaperOrder(parsed.data, bundle);
-    store.appendOrder(order);
+    if (order.status === "ACCEPTED") {
+      store.appendOrder(order);
+    }
+
     return c.json(
-      { order, ledger: store.listOrders(12) },
+      { order: toPublicOrder(order), ledger: store.listPublicOrders(12) },
       order.status === "ACCEPTED" ? 201 : 409
     );
   });
 
-  app.get("/api/ledger", (c) => c.json({ orders: store.listOrders(50) }));
+  app.get("/api/ledger", (c) => c.json({ orders: store.listPublicOrders(50) }));
 
   app.post("/api/risk/evaluate", async (c) => {
-    const body = await c.req.json().catch(() => undefined);
-    const parsed = participantProfileSchema.safeParse(body);
-    if (!parsed.success) {
-      return c.json({ error: "Invalid participant profile", details: parsed.error.flatten() }, 400);
+    const parsed = await parseLimitedJson(c, participantProfileSchema);
+    if (!parsed.ok) {
+      return c.json(parsed.payload, parsed.status);
     }
 
     return c.json(evaluateParticipantRisk(parsed.data));
   });
 
-  app.get("/api/oracle/events", (c) => c.json({ events: store.listOracleEvents(50) }));
+  app.get("/api/oracle/events", requireAdmin, (c) => c.json({ events: store.listOracleEvents(50) }));
 
   app.post("/api/oracle/events", requireAdmin, async (c) => {
-    const body = await c.req.json().catch(() => undefined);
-    const parsed = signedOracleEventRequestSchema.safeParse(body);
-    if (!parsed.success) {
-      return c.json({ error: "Invalid oracle event", details: parsed.error.flatten() }, 400);
+    const parsed = await parseLimitedJson(c, signedOracleEventRequestSchema);
+    if (!parsed.ok) {
+      return c.json(parsed.payload, parsed.status);
+    }
+
+    const requireSignature = oracleSignatureRequired();
+    if (requireSignature && !process.env.ORACLE_SIGNER_ADDRESS) {
+      return c.json(
+        {
+          error: "Oracle signer not configured",
+          failClosed: true
+        },
+        503
+      );
     }
 
     const record = await buildOracleEventRecord(parsed.data, {
       expectedSignerAddress: process.env.ORACLE_SIGNER_ADDRESS,
+      requireSignature,
       nextSequenceNumber: store.nextOracleSequenceNumber()
     });
+
+    if (record.verificationStatus !== "accepted") {
+      return c.json(
+        {
+          oracleEvent: record,
+          liveResolutionSubmitted: false
+        },
+        401
+      );
+    }
+
     store.appendOracleEvent(record);
 
     return c.json(
@@ -110,6 +139,7 @@ export function createApp(options: { store?: PilotStore; serveStatic?: boolean }
 
   app.get("/api/readiness", async (c) => {
     const integrations = await getIntegrationReadiness();
+    const requireSignedOracle = oracleSignatureRequired();
     return c.json({
       mode: "paper-only",
       pilotInfrastructureReady: true,
@@ -119,7 +149,22 @@ export function createApp(options: { store?: PilotStore; serveStatic?: boolean }
       liveOrderRoutingAllowed: false,
       liveFedExApiAllowed: false,
       liveOrderSigningAllowed: false,
-      store: store.snapshot(),
+      store: store.publicSnapshot(),
+      securityPosture: {
+        adminAuthMode: adminAuthMode(),
+        oracleMode: process.env.ORACLE_SIGNER_ADDRESS
+          ? "signed"
+          : requireSignedOracle
+            ? "locked"
+            : "fixture-dev",
+        adminRoutesFailClosed: adminAuthMode() !== "dev-open",
+        oracleEventsRequireSignature: requireSignedOracle,
+        publicLedgerRedacted: true,
+        rejectedOrdersPersisted: false,
+        rateLimitsEnabled: true,
+        bodyLimitBytes: DEFAULT_JSON_BODY_LIMIT_BYTES,
+        securityHeadersEnabled: true
+      },
       integrations,
       blockers: [
         "Regulatory review required before any customer-facing event-contract flow.",
@@ -151,10 +196,9 @@ export function createApp(options: { store?: PilotStore; serveStatic?: boolean }
   );
 
   app.post("/api/admin/simulate-resolution", requireAdmin, async (c) => {
-    const body = await c.req.json().catch(() => undefined);
-    const parsed = orderRequestSchema.pick({ trackingNumber: true }).safeParse(body);
-    if (!parsed.success) {
-      return c.json({ error: "trackingNumber is required" }, 400);
+    const parsed = await parseLimitedJson(c, trackingOnlySchema);
+    if (!parsed.ok) {
+      return c.json(parsed.payload, parsed.status);
     }
     const bundle = buildMarketBundle(parsed.data.trackingNumber);
     return c.json({

@@ -53,6 +53,7 @@ export async function buildOracleEventRecord(
   request: SignedOracleEventRequest,
   options: {
     expectedSignerAddress?: string;
+    requireSignature?: boolean;
     nextSequenceNumber: number;
     now?: Date;
   }
@@ -61,11 +62,12 @@ export async function buildOracleEventRecord(
   const event = normalizeEvent(request.event);
   const eventHash = sha256(JSON.stringify(event));
   const expectedSignerAddress = options.expectedSignerAddress;
-  const needsSignature = Boolean(expectedSignerAddress);
+  const needsSignature = options.requireSignature ?? true;
   const signatureValid = needsSignature
-    ? await verifyOracleSignature(request, expectedSignerAddress as Address)
+    ? Boolean(expectedSignerAddress) &&
+      (await verifyOracleSignature(request, expectedSignerAddress as Address))
     : false;
-  const accepted = !needsSignature || signatureValid;
+  const accepted = needsSignature ? signatureValid : !expectedSignerAddress || signatureValid;
 
   return {
     id: `oracle-${shortHash(`${eventHash}:${options.nextSequenceNumber}`)}`,
@@ -81,8 +83,18 @@ export async function buildOracleEventRecord(
     createdAt: now.toISOString(),
     rejectionReason: accepted
       ? undefined
-      : "Signature did not match configured oracle signer address."
+      : expectedSignerAddress
+        ? "Signature did not match configured oracle signer address."
+        : "Oracle signer is not configured."
   };
+}
+
+export function fixtureOracleEventsAllowed(): boolean {
+  return process.env.NODE_ENV !== "production" && process.env.ALLOW_FIXTURE_ORACLE_EVENTS === "true";
+}
+
+export function oracleSignatureRequired(): boolean {
+  return !fixtureOracleEventsAllowed();
 }
 
 export function normalizeEvent(event: OracleEventPayload): OracleEventPayload & {

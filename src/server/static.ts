@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
-import { extname, join, normalize } from "node:path";
+import { extname, join, relative, resolve } from "node:path";
 import type { Hono } from "hono";
 
 const MIME_TYPES: Record<string, string> = {
@@ -35,7 +35,9 @@ export function installStaticRoutes(app: Hono, distDir = join(process.cwd(), "di
 }
 
 function safeDistPath(distDir: string, pathname: string): string | null {
-  const normalized = normalize(join(distDir, pathname));
-  if (!normalized.startsWith(distDir)) return null;
+  const root = resolve(distDir);
+  const normalized = resolve(join(root, pathname));
+  const rel = relative(root, normalized);
+  if (rel.startsWith("..") || rel === ".." || rel.startsWith("/")) return null;
   return normalized;
 }

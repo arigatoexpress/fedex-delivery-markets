@@ -120,7 +120,39 @@ describe("api", () => {
 
     expect(response.status).toBe(200);
     expect(payload.liveMoneyMovementAllowed).toBe(false);
+    expect(payload.securityPosture.adminRoutesFailClosed).toBe(true);
+    expect(payload.securityPosture.publicLedgerRedacted).toBe(true);
     expect(payload.integrations.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("fails closed for admin routes by default", async () => {
+    const app = createApp({ store: createPilotStore(tempDataDir()) });
+    const response = await app.request("/api/admin/audit");
+    const payload = await response.json();
+
+    expect(response.status).toBe(401);
+    expect(payload.failClosed).toBe(true);
+  });
+
+  it("does not persist blocked paper orders to the product ledger", async () => {
+    const store = createPilotStore(tempDataDir());
+    const app = createApp({ store });
+    const response = await app.request("/api/orders", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        trackingNumber: "771234567890",
+        marketId: "not-a-real-market",
+        side: "YES",
+        contracts: 1,
+        accountId: "attacker"
+      })
+    });
+    const payload = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(payload.order.accountId).toBeUndefined();
+    expect(store.snapshot().orderCount).toBe(0);
   });
 
   it("evaluates participant risk separately from paper order acceptance", async () => {
@@ -146,10 +178,12 @@ describe("api", () => {
 
   it("accepts signed oracle events when the configured signer matches", async () => {
     const previousSigner = process.env.ORACLE_SIGNER_ADDRESS;
+    const previousAdminToken = process.env.DELIVERY_MARKETS_ADMIN_TOKEN;
     const account = privateKeyToAccount(
       "0x59c6995e998f97a5a0044966f094538e9d6d481b0392c81e9b513b7a8171b7e4"
     );
     process.env.ORACLE_SIGNER_ADDRESS = account.address;
+    process.env.DELIVERY_MARKETS_ADMIN_TOKEN = "test-admin-token";
     const app = createApp({ store: createPilotStore(tempDataDir()) });
     const event = {
       trackingNumberHash: sha256("771234567890"),
@@ -169,7 +203,10 @@ describe("api", () => {
 
     const response = await app.request("/api/oracle/events", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        authorization: "Bearer test-admin-token",
+        "content-type": "application/json"
+      },
       body: JSON.stringify({ event, signerAddress: account.address, signature })
     });
     const payload = await response.json();
@@ -178,11 +215,59 @@ describe("api", () => {
     } else {
       process.env.ORACLE_SIGNER_ADDRESS = previousSigner;
     }
+    if (previousAdminToken === undefined) {
+      delete process.env.DELIVERY_MARKETS_ADMIN_TOKEN;
+    } else {
+      process.env.DELIVERY_MARKETS_ADMIN_TOKEN = previousAdminToken;
+    }
 
     expect(response.status).toBe(202);
     expect(payload.oracleEvent.verificationMode).toBe("signed");
     expect(payload.oracleEvent.verificationStatus).toBe("accepted");
     expect(payload.liveResolutionSubmitted).toBe(false);
+  });
+
+  it("rejects oracle events when signer configuration is missing", async () => {
+    const previousSigner = process.env.ORACLE_SIGNER_ADDRESS;
+    const previousAdminToken = process.env.DELIVERY_MARKETS_ADMIN_TOKEN;
+    delete process.env.ORACLE_SIGNER_ADDRESS;
+    process.env.DELIVERY_MARKETS_ADMIN_TOKEN = "test-admin-token";
+    const store = createPilotStore(tempDataDir());
+    const app = createApp({ store });
+    const response = await app.request("/api/oracle/events", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer test-admin-token",
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        event: {
+          trackingNumberHash: sha256("771234567890"),
+          eventCode: "HUB_ARRIVAL",
+          occurredAt: "2026-05-17T08:20:00-05:00",
+          facility: "Memphis World Hub",
+          city: "Memphis",
+          state: "TN",
+          eventSource: "fedex_fixture"
+        }
+      })
+    });
+    const payload = await response.json();
+
+    if (previousSigner === undefined) {
+      delete process.env.ORACLE_SIGNER_ADDRESS;
+    } else {
+      process.env.ORACLE_SIGNER_ADDRESS = previousSigner;
+    }
+    if (previousAdminToken === undefined) {
+      delete process.env.DELIVERY_MARKETS_ADMIN_TOKEN;
+    } else {
+      process.env.DELIVERY_MARKETS_ADMIN_TOKEN = previousAdminToken;
+    }
+
+    expect(response.status).toBe(503);
+    expect(payload.failClosed).toBe(true);
+    expect(store.snapshot().oracleEventCount).toBe(0);
   });
 });
 

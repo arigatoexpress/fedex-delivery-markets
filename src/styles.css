@@ -269,6 +269,55 @@ small {
   padding: 22px;
 }
 
+.security-band {
+  align-items: center;
+  background: #f0f8f3;
+  border: 1px solid #bfdfca;
+  border-radius: 8px;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.8fr);
+  margin-bottom: 20px;
+  padding: 16px 18px;
+}
+
+.security-band h3 {
+  margin: 3px 0 0;
+}
+
+.security-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.security-badge {
+  background: #fff;
+  border: 1px solid #d8eadc;
+  border-radius: 8px;
+  min-width: 0;
+  padding: 10px;
+}
+
+.security-badge span {
+  color: #6f6674;
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.security-badge strong {
+  color: #16633a;
+  display: block;
+  font-size: 0.9rem;
+  margin-top: 2px;
+}
+
+.security-badge.warn strong {
+  color: #9b4b0b;
+}
+
 .journey-copy p {
   color: #625767;
   margin-bottom: 0;
@@ -641,7 +690,12 @@ small {
 @media (max-width: 860px) {
   .app-shell,
   .journey-band,
+  .security-band,
   .market-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .security-grid {
     grid-template-columns: 1fr;
   }
 
