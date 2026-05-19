@@ -38,6 +38,20 @@ export const SOURCE_REFERENCES = [
     url: "https://docs.robinhood.com/chain/connecting/"
   },
   {
+    id: "arbitrum",
+    label: "Arbitrum",
+    takeaway:
+      "Robinhood Chain is built with Arbitrum Orbit technology; the private receipt contract uses ordinary EVM calldata that can also target Arbitrum-compatible testnets.",
+    url: "https://docs.arbitrum.io/"
+  },
+  {
+    id: "metamask-connect",
+    label: "MetaMask Connect",
+    takeaway:
+      "The frontend can hand a recipient wallet unsigned transaction requests; this demo stops at address collection and calldata preview.",
+    url: "https://docs.metamask.io/"
+  },
+  {
     id: "robinhood-event-contracts",
     label: "Robinhood Event Contracts",
     takeaway:

@@ -155,6 +155,124 @@ describe("api", () => {
     expect(store.snapshot().orderCount).toBe(0);
   });
 
+  it("issues recipient-only access grants for matching package claims", async () => {
+    const store = createPilotStore(tempDataDir());
+    const app = createApp({ store });
+    const response = await app.request("/api/access/claim", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        trackingNumber: "771234567890",
+        walletAddress: "0x1111111111111111111111111111111111111111",
+        claimCode: "AUSTIN-DENVER-RECIPIENT"
+      })
+    });
+    const payload = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(payload.grant.status).toBe("GRANTED");
+    expect(payload.grant.capabilities).toContain("SUBMIT_PRIVATE_ORDER");
+    expect(store.snapshot().accessGrantCount).toBe(1);
+  });
+
+  it("denies recipient access when the wallet does not match the package record", async () => {
+    const app = createApp({ store: createPilotStore(tempDataDir()) });
+    const response = await app.request("/api/access/claim", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        trackingNumber: "771234567890",
+        walletAddress: "0x9999999999999999999999999999999999999999",
+        claimCode: "AUSTIN-DENVER-RECIPIENT"
+      })
+    });
+    const payload = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(payload.grant.status).toBe("DENIED");
+    expect(payload.grant.reason).toContain("Wallet is not");
+  });
+
+  it("quotes the private AMM with theta decay and LMSR liquidity", async () => {
+    const app = createApp({ store: createPilotStore(tempDataDir()) });
+    const bundleResponse = await app.request("/api/tracking/771234567890");
+    const bundle = await bundleResponse.json();
+    const response = await app.request("/api/amm/quote", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        trackingNumber: "771234567890",
+        marketId: bundle.markets[0].id,
+        side: "YES",
+        contracts: 5
+      })
+    });
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.quote.counterparty).toBe("private-amm-bot");
+    expect(payload.quote.totalCostUsd).toBeGreaterThan(0);
+    expect(payload.quote.thetaDecayBps).toBeGreaterThan(0);
+    expect(payload.quote.liquidityParameter).toBeGreaterThan(0);
+  });
+
+  it("requires recipient grants before private AMM order submission", async () => {
+    const app = createApp({ store: createPilotStore(tempDataDir()) });
+    const bundleResponse = await app.request("/api/tracking/771234567890");
+    const bundle = await bundleResponse.json();
+    const response = await app.request("/api/private/orders", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        trackingNumber: "771234567890",
+        marketId: bundle.markets[0].id,
+        side: "YES",
+        contracts: 5,
+        accessGrantId: "grant-missing"
+      })
+    });
+
+    expect(response.status).toBe(403);
+  });
+
+  it("submits private AMM paper orders and returns testnet calldata previews", async () => {
+    const store = createPilotStore(tempDataDir());
+    const app = createApp({ store });
+    const bundleResponse = await app.request("/api/tracking/771234567890");
+    const bundle = await bundleResponse.json();
+    const grantResponse = await app.request("/api/access/claim", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        trackingNumber: "771234567890",
+        walletAddress: "0x1111111111111111111111111111111111111111",
+        claimCode: "AUSTIN-DENVER-RECIPIENT"
+      })
+    });
+    const grantPayload = await grantResponse.json();
+    const response = await app.request("/api/private/orders", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        trackingNumber: "771234567890",
+        marketId: bundle.markets[0].id,
+        side: "YES",
+        contracts: 5,
+        accessGrantId: grantPayload.grant.id
+      })
+    });
+    const payload = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(payload.order.accountId).toBeUndefined();
+    expect(payload.quote.counterparty).toBe("private-amm-bot");
+    expect(payload.testnetPreviews[0].chainId).toBe(46630);
+    expect(payload.testnetPreviews.every((preview: { broadcastEnabled: boolean }) => !preview.broadcastEnabled)).toBe(
+      true
+    );
+    expect(store.snapshot().orderCount).toBe(1);
+  });
+
   it("evaluates participant risk separately from paper order acceptance", async () => {
     const app = createApp({ store: createPilotStore(tempDataDir()) });
     const response = await app.request("/api/risk/evaluate", {

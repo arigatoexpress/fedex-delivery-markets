@@ -34,26 +34,33 @@ Robinhood owns the consumer distribution and event-contract UX angle. The pilot 
 1. **Internal simulator**
    - Current repo.
    - Synthetic shipments only.
-   - Paper orders only.
+   - Recipient-only claim fixtures.
+   - Private AMM paper orders only.
    - Local append-only ledger.
 
-2. **FedEx sandbox oracle**
+2. **Private testnet receipt**
+   - Deploy `PrivateDeliveryMarket` to Robinhood Chain testnet or Arbitrum Sepolia.
+   - Use MetaMask to submit recipient-signed `createMarket` / `recordTrade` receipts.
+   - Keep custody and real settlement disabled.
+
+3. **FedEx sandbox oracle**
    - Replace fixtures with an approved sandbox feed.
    - Sign oracle events with a dedicated pilot key.
    - Store hashed events and read back the audit ledger.
 
-3. **Testnet resolver**
+4. **Testnet resolver**
    - Deploy `DeliveryMarketResolver` to Robinhood Chain testnet or Arbitrum Sepolia.
    - Record HCS topic metadata and resolver events.
    - Still no custody or real settlement.
 
-4. **Compliance pilot design**
+5. **Compliance pilot design**
    - Write market rulebook.
    - Define eligible participants.
-   - Exclude employees, operations staff, shippers/recipients when required, and market makers with restricted information.
+   - Start from recipient-only access, then decide whether shippers or third parties are ever eligible.
+   - Exclude employees, operations staff, drivers, station operators, and market makers with restricted information.
    - Define correction, dispute, delay, exception, and ambiguous-delivery procedures.
 
-5. **Regulated venue review**
+6. **Regulated venue review**
    - Determine whether the product can be listed by a regulated exchange or Robinhood partner flow.
    - Run customer suitability, KYC, geofence, risk disclosure, and state availability review.
 

@@ -22,10 +22,23 @@ import type {
   DeliveryMarketBundle,
   IntegrationReadiness,
   OrderSide,
+  PrivateMarketQuote,
   PublicPaperOrder,
+  RecipientAccessGrant,
+  RecipientAccessPolicy,
   ResearchReference,
-  SecurityPosture
+  SecurityPosture,
+  TestnetTransactionPreview,
+  VenueRoute
 } from "./shared/types";
+
+declare global {
+  interface Window {
+    ethereum?: {
+      request(input: { method: string; params?: unknown[] }): Promise<unknown>;
+    };
+  }
+}
 
 type ReadinessResponse = {
   mode: string;
@@ -56,6 +69,13 @@ export default function App() {
   const [readiness, setReadiness] = useState<ReadinessResponse | null>(null);
   const [research, setResearch] = useState<ResearchResponse | null>(null);
   const [ledger, setLedger] = useState<PublicPaperOrder[]>([]);
+  const [accessPolicy, setAccessPolicy] = useState<RecipientAccessPolicy | null>(null);
+  const [accessGrant, setAccessGrant] = useState<RecipientAccessGrant | null>(null);
+  const [quote, setQuote] = useState<PrivateMarketQuote | null>(null);
+  const [testnetPreviews, setTestnetPreviews] = useState<TestnetTransactionPreview[]>([]);
+  const [venueRoutes, setVenueRoutes] = useState<VenueRoute[]>([]);
+  const [walletAddress, setWalletAddress] = useState("0x1111111111111111111111111111111111111111");
+  const [claimCode, setClaimCode] = useState("AUSTIN-DENVER-RECIPIENT");
   const [selectedMarketId, setSelectedMarketId] = useState<string | null>(null);
   const [contracts, setContracts] = useState(5);
   const [orderSide, setOrderSide] = useState<OrderSide>("YES");
@@ -69,7 +89,10 @@ export default function App() {
       ),
       fetchJson<ReadinessResponse>("/api/readiness").then(setReadiness),
       fetchJson<ResearchResponse>("/api/research").then(setResearch),
-      fetchJson<{ orders: PublicPaperOrder[] }>("/api/ledger").then((data) => setLedger(data.orders))
+      fetchJson<{ orders: PublicPaperOrder[] }>("/api/ledger").then((data) => setLedger(data.orders)),
+      fetchJson<{ routes: VenueRoute[] }>("/api/venues/private-routes").then((data) =>
+        setVenueRoutes(data.routes)
+      )
     ]);
   }, []);
 
@@ -88,11 +111,31 @@ export default function App() {
     [bundle, selectedMarketId]
   );
 
+  useEffect(() => {
+    if (!selectedMarket) {
+      setQuote(null);
+      return;
+    }
+    void refreshQuote(selectedMarket, orderSide, contracts);
+  }, [selectedMarket, orderSide, contracts]);
+
   async function loadTracking(nextTrackingNumber = trackingNumber) {
     setLoading(true);
     try {
-      const data = await fetchJson<DeliveryMarketBundle>(`/api/tracking/${nextTrackingNumber}`);
+      const [data, policyPayload] = await Promise.all([
+        fetchJson<DeliveryMarketBundle>(`/api/tracking/${nextTrackingNumber}`),
+        fetchJson<{ policy: RecipientAccessPolicy }>(`/api/access/policy/${nextTrackingNumber}`)
+      ]);
       setBundle(data);
+      setAccessPolicy(policyPayload.policy);
+      setAccessGrant(null);
+      setTestnetPreviews([]);
+      if (policyPayload.policy.allowedWallets[0]) {
+        setWalletAddress(policyPayload.policy.allowedWallets[0]);
+      }
+      if (policyPayload.policy.demoClaimCode) {
+        setClaimCode(policyPayload.policy.demoClaimCode);
+      }
       setNotice(
         data.cutoff.status === "OPEN"
           ? "Markets open before hub cutoff"
@@ -102,9 +145,51 @@ export default function App() {
       );
     } catch (error) {
       setBundle(null);
+      setAccessPolicy(null);
       setNotice(error instanceof Error ? error.message : "Tracking lookup failed");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function refreshQuote(
+    market: DeliveryMarket,
+    side: OrderSide,
+    nextContracts: number,
+    quoteTrackingNumber = bundle?.shipment.trackingNumber ?? trackingNumber
+  ) {
+    try {
+      const payload = await postJson<{ quote: PrivateMarketQuote }>("/api/amm/quote", {
+        trackingNumber: quoteTrackingNumber,
+        marketId: market.id,
+        side,
+        contracts: nextContracts
+      });
+      setQuote(payload.quote);
+    } catch {
+      setQuote(null);
+    }
+  }
+
+  async function claimRecipientAccess() {
+    const payload = await postJson<{ grant: RecipientAccessGrant }>("/api/access/claim", {
+      trackingNumber,
+      walletAddress,
+      claimCode
+    });
+    setAccessGrant(payload.grant);
+    setNotice(payload.grant.reason);
+  }
+
+  async function connectWallet() {
+    if (!window.ethereum) {
+      setNotice("MetaMask is not available in this browser session. Use the demo recipient wallet.");
+      return;
+    }
+    const accounts = (await window.ethereum.request({ method: "eth_requestAccounts" })) as string[];
+    if (accounts[0]) {
+      setWalletAddress(accounts[0]);
+      setNotice("Wallet address connected for recipient access check.");
     }
   }
 
@@ -128,9 +213,54 @@ export default function App() {
     setNotice(payload.order.reason);
   }
 
+  async function submitPrivateOrder(market: DeliveryMarket, side: OrderSide) {
+    if (!accessGrant || accessGrant.status !== "GRANTED") {
+      setNotice("Claim recipient access before submitting a private AMM order.");
+      return;
+    }
+    const payload = await postJson<{
+      order: PublicPaperOrder;
+      quote: PrivateMarketQuote;
+      ledger: PublicPaperOrder[];
+      testnetPreviews: TestnetTransactionPreview[];
+    }>("/api/private/orders", {
+      trackingNumber,
+      marketId: market.id,
+      side,
+      contracts,
+      accessGrantId: accessGrant.id
+    });
+    setQuote(payload.quote);
+    setLedger(payload.ledger);
+    setTestnetPreviews(payload.testnetPreviews);
+    setNotice(payload.order.reason);
+  }
+
+  async function previewTestnetCalldata(market: DeliveryMarket, side: OrderSide) {
+    if (!accessGrant || accessGrant.status !== "GRANTED") {
+      setNotice("Claim recipient access before previewing testnet calldata.");
+      return;
+    }
+    const payload = await postJson<{
+      quote: PrivateMarketQuote;
+      testnetPreviews: TestnetTransactionPreview[];
+    }>("/api/testnet/calldata", {
+      trackingNumber,
+      marketId: market.id,
+      side,
+      contracts,
+      accessGrantId: accessGrant.id
+    });
+    setQuote(payload.quote);
+    setTestnetPreviews(payload.testnetPreviews);
+    setNotice("Robinhood Chain / Arbitrum-compatible calldata preview generated. Nothing was signed or broadcast.");
+  }
+
   const selectedPrice =
-    selectedMarket && orderSide === "YES" ? selectedMarket.yesPrice : selectedMarket?.noPrice ?? 0;
-  const notional = Math.round(contracts * selectedPrice * 100) / 100;
+    quote?.limitPrice ??
+    (selectedMarket && orderSide === "YES" ? selectedMarket.yesPrice : selectedMarket?.noPrice ?? 0);
+  const notional = quote?.totalCostUsd ?? Math.round(contracts * selectedPrice * 100) / 100;
+  const accessGranted = accessGrant?.status === "GRANTED";
 
   return (
     <div className="app-shell">
@@ -231,6 +361,30 @@ export default function App() {
           </div>
         </section>
 
+        <section className="private-market-band">
+          <div>
+            <p className="eyebrow">Recipient-Only Market</p>
+            <h3>{accessPolicy?.packageAlias ?? "Private package market"}</h3>
+            <p>
+              Only the recorded recipient wallet can claim, quote, and submit private AMM paper orders
+              before cutoff.
+            </p>
+          </div>
+          <div className="private-market-stats">
+            <SecurityBadge
+              label="Access"
+              value={accessGranted ? "Granted" : accessPolicy?.status ?? "Claimable"}
+              state={accessGranted ? "pass" : "warn"}
+            />
+            <SecurityBadge
+              label="AMM"
+              value={quote ? `${formatCents(quote.limitPrice)} ${orderSide}` : "Quoting"}
+              state="pass"
+            />
+            <SecurityBadge label="Venue" value="Testnet preview" state="pass" />
+          </div>
+        </section>
+
         {bundle ? (
           <>
             <section className="journey-band">
@@ -269,25 +423,27 @@ export default function App() {
                       disabled={market.status !== "OPEN"}
                       onClick={(event) => {
                         event.stopPropagation();
-                        void submitPaperOrder(market, "YES");
+                        setOrderSide("YES");
+                        void refreshQuote(market, "YES", contracts, bundle.shipment.trackingNumber);
                       }}
-                      title="Submit paper YES order"
+                      title="Quote private YES order"
                       type="button"
                     >
                       <CheckCircle2 size={16} />
-                      Paper YES
+                      Quote YES
                     </button>
                     <button
                       disabled={market.status !== "OPEN"}
                       onClick={(event) => {
                         event.stopPropagation();
-                        void submitPaperOrder(market, "NO");
+                        setOrderSide("NO");
+                        void refreshQuote(market, "NO", contracts, bundle.shipment.trackingNumber);
                       }}
-                      title="Submit paper NO order"
+                      title="Quote private NO order"
                       type="button"
                     >
                       <Ban size={16} />
-                      Paper NO
+                      Quote NO
                     </button>
                   </div>
                 </article>
@@ -328,9 +484,44 @@ export default function App() {
       </main>
 
       <aside className="right-rail">
+        <section className="order-ticket recipient-ticket">
+          <div className="section-heading">
+            <h3>Recipient Access</h3>
+            <LockKeyhole size={18} />
+          </div>
+          <label className="field-label" htmlFor="wallet-address">
+            Recipient wallet
+          </label>
+          <input
+            id="wallet-address"
+            onChange={(event) => setWalletAddress(event.target.value)}
+            value={walletAddress}
+          />
+          <label className="field-label" htmlFor="claim-code">
+            Package claim code
+          </label>
+          <input
+            id="claim-code"
+            onChange={(event) => setClaimCode(event.target.value)}
+            value={claimCode}
+          />
+          <div className="dual-action">
+            <button onClick={() => void connectWallet()} type="button">
+              MetaMask
+            </button>
+            <button onClick={() => void claimRecipientAccess()} type="button">
+              Claim
+            </button>
+          </div>
+          <div className={`grant-status ${accessGranted ? "granted" : "pending"}`}>
+            <strong>{accessGranted ? "Recipient verified" : "Recipient claim required"}</strong>
+            <span>{accessGrant?.reason ?? "Demo access is fixture-backed and expires at cutoff."}</span>
+          </div>
+        </section>
+
         <section className="order-ticket">
           <div className="section-heading">
-            <h3>Paper Ticket</h3>
+            <h3>Private AMM Ticket</h3>
             <CircleDollarSign size={18} />
           </div>
           {selectedMarket ? (
@@ -364,21 +555,37 @@ export default function App() {
                 value={contracts}
               />
               <div className="ticket-total">
-                <span>Limit</span>
+                <span>AMM limit</span>
                 <strong>{formatCents(selectedPrice)}</strong>
               </div>
               <div className="ticket-total">
-                <span>Paper notional</span>
+                <span>Private notional</span>
                 <strong>${notional.toFixed(2)}</strong>
               </div>
+              {quote ? (
+                <div className="quote-metrics">
+                  <span>Spot {formatCents(quote.spotPrice)}</span>
+                  <span>Slippage {quote.slippageBps} bps</span>
+                  <span>Theta {quote.thetaDecayBps} bps</span>
+                  <span>LMSR b=${quote.liquidityParameter.toFixed(2)}</span>
+                </div>
+              ) : null}
               <button
                 className="primary-action"
-                disabled={selectedMarket.status !== "OPEN"}
-                onClick={() => void submitPaperOrder(selectedMarket, orderSide)}
+                disabled={selectedMarket.status !== "OPEN" || !accessGranted}
+                onClick={() => void submitPrivateOrder(selectedMarket, orderSide)}
                 type="button"
               >
                 <ArrowRight size={17} />
-                Submit Paper Order
+                Submit Private Order
+              </button>
+              <button
+                className="secondary-action"
+                disabled={selectedMarket.status !== "OPEN" || !accessGranted}
+                onClick={() => void previewTestnetCalldata(selectedMarket, orderSide)}
+                type="button"
+              >
+                Preview Testnet Calldata
               </button>
             </>
           ) : (
@@ -402,6 +609,43 @@ export default function App() {
               </a>
             </div>
           ))}
+        </section>
+
+        <section className="rail-section inspector">
+          <div className="section-heading">
+            <h3>Venue Path</h3>
+            <Network size={18} />
+          </div>
+          <div className="venue-list">
+            {venueRoutes.slice(0, 4).map((route) => (
+              <div className="venue-row" key={route.id}>
+                <strong>{route.label}</strong>
+                <span>{route.mode}</span>
+                <small>{route.summary}</small>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="rail-section inspector">
+          <div className="section-heading">
+            <h3>Testnet Preview</h3>
+            <RadioTower size={18} />
+          </div>
+          <div className="calldata-list">
+            {testnetPreviews.length ? (
+              testnetPreviews.map((preview) => (
+                <div className="calldata-row" key={preview.id}>
+                  <strong>{preview.functionName}</strong>
+                  <span>{preview.chainName}</span>
+                  <code>{preview.calldata.slice(0, 58)}...</code>
+                  <small>{preview.broadcastEnabled ? "Broadcast enabled" : "No signing or broadcast"}</small>
+                </div>
+              ))
+            ) : (
+              <p>Claim access, then preview Robinhood Chain / Arbitrum-compatible calldata.</p>
+            )}
+          </div>
         </section>
 
         <section className="rail-section inspector">
@@ -617,6 +861,23 @@ async function fetchJson<T>(url: string): Promise<T> {
     throw new Error(`Request failed: ${response.status}`);
   }
   return (await response.json()) as T;
+}
+
+async function postJson<T>(url: string, body: unknown): Promise<T> {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  const payload = (await response.json()) as T;
+  if (!response.ok) {
+    const message =
+      payload && typeof payload === "object" && "error" in payload
+        ? String((payload as { error: unknown }).error)
+        : `Request failed: ${response.status}`;
+    throw new Error(message);
+  }
+  return payload;
 }
 
 function formatCents(value: number): string {

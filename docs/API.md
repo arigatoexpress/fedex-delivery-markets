@@ -16,6 +16,66 @@ Returns the three synthetic tracking numbers bundled with the pilot.
 
 Returns the synthetic shipment, generated markets, cutoff state, settlement state, and HCS-style anchors.
 
+### `GET /api/access/policy/:trackingNumber`
+
+Returns the recipient-only access policy for the package, including the hashed tracking number, allowed demo wallet, claim requirement, cutoff time, and current claimability.
+
+### `POST /api/access/claim`
+
+Creates a recipient access grant when the wallet and package claim code match the package record.
+
+```json
+{
+  "trackingNumber": "771234567890",
+  "walletAddress": "0x1111111111111111111111111111111111111111",
+  "claimCode": "AUSTIN-DENVER-RECIPIENT"
+}
+```
+
+Granted capabilities include private market viewing, AMM quoting, private paper order submission, and testnet calldata preview. Production should replace the fixture claim code with FedEx Identity / recipient-account authorization.
+
+### `POST /api/amm/quote`
+
+Returns a private binary AMM quote using the LMSR pricing engine, theta-decay spread, inventory spread, and cutoff-aware liquidity parameter.
+
+```json
+{
+  "trackingNumber": "771234567890",
+  "marketId": "abc123-day-2026-05-18",
+  "side": "YES",
+  "contracts": 5
+}
+```
+
+### `POST /api/private/orders`
+
+Creates a recipient-gated private AMM paper order. Requires a granted access token from `/api/access/claim`.
+
+```json
+{
+  "trackingNumber": "771234567890",
+  "marketId": "abc123-day-2026-05-18",
+  "side": "YES",
+  "contracts": 5,
+  "accessGrantId": "grant-..."
+}
+```
+
+The response returns a redacted order, the AMM quote, the redacted public ledger, and Robinhood Chain / Arbitrum-compatible calldata previews. The API does not sign or broadcast.
+
+### `POST /api/testnet/calldata`
+
+Returns `createMarket` and `recordTrade` calldata previews for the private market receipt contract. Requires recipient access. Set `PRIVATE_MARKET_CONTRACT_ADDRESS` to preview a concrete deployed target; otherwise the response uses the zero-address placeholder and warning.
+
+### `GET /api/venues/private-routes`
+
+Returns what is currently possible:
+
+- Robinhood Chain / Arbitrum-compatible private receipt contract: testnet calldata available.
+- Hedera HCS oracle anchor: testnet/sandbox design available.
+- Robinhood event contracts: partner approval required; no public private-market SDK assumed.
+- Polymarket CLOB: read-only/reference route; public docs do not expose private recipient-only market creation.
+
 ### `POST /api/orders`
 
 Creates a paper order only.

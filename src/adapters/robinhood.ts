@@ -11,7 +11,7 @@ export function getRobinhoodReadiness(): IntegrationReadiness {
     network: `${ROBINHOOD_CHAIN_TESTNET.name} (${ROBINHOOD_CHAIN_TESTNET.chainId})`,
     requiredEnv: ["ROBINHOOD_CHAIN_RPC_URL", "DEPLOYER_PRIVATE_KEY"],
     notes: [
-      "The app includes chain metadata for a future Robinhood Chain resolver deployment.",
+      "The app includes chain metadata and calldata previews for a private recipient-only receipt contract.",
       "Robinhood event-contract trading is app/partner-exchange mediated; no public event-contract SDK is used here.",
       "The API exposes no route that can sign or submit a Robinhood or exchange order."
     ],

@@ -1,7 +1,19 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { z } from "zod";
+import { buildPrivateMarketPreviews } from "../adapters/privateMarketTestnet";
+import { getPrivateVenueRoutes } from "../adapters/privateVenues";
 import { buildMarketBundle, listDemoTrackingNumbers } from "../domain/deliveryMarkets";
+import {
+  accessClaimRequestSchema,
+  buildRecipientAccessPolicy,
+  evaluateAccessClaim
+} from "../domain/access";
+import {
+  ammQuoteRequestSchema,
+  createPrivateAmmPaperOrder,
+  quotePrivateAmm
+} from "../domain/amm";
 import { createPaperOrder, orderRequestSchema } from "../domain/orders";
 import {
   buildOracleEventRecord,
@@ -18,6 +30,12 @@ import { rateLimit } from "./rateLimit";
 import { securityHeaders } from "./securityHeaders";
 
 const trackingOnlySchema = z.object({ trackingNumber: z.string().min(8) });
+const privateOrderRequestSchema = ammQuoteRequestSchema.extend({
+  accessGrantId: z.string().min(8)
+});
+const testnetPreviewRequestSchema = privateOrderRequestSchema.extend({
+  orderId: z.string().min(4).max(120).optional()
+});
 
 export function createApp(options: { store?: PilotStore; serveStatic?: boolean } = {}) {
   const app = new Hono();
@@ -60,6 +78,56 @@ export function createApp(options: { store?: PilotStore; serveStatic?: boolean }
     }
   });
 
+  app.get("/api/access/policy/:trackingNumber", (c) => {
+    try {
+      const bundle = buildMarketBundle(c.req.param("trackingNumber"));
+      return c.json({ policy: buildRecipientAccessPolicy(c.req.param("trackingNumber"), bundle) });
+    } catch (error) {
+      return c.json(
+        {
+          error: error instanceof Error ? error.message : "Unknown access policy error",
+          availableDemoTrackingNumbers: listDemoTrackingNumbers()
+        },
+        404
+      );
+    }
+  });
+
+  app.post("/api/access/claim", async (c) => {
+    const parsed = await parseLimitedJson(c, accessClaimRequestSchema);
+    if (!parsed.ok) {
+      return c.json(parsed.payload, parsed.status);
+    }
+
+    const bundle = buildMarketBundle(parsed.data.trackingNumber);
+    const grant = evaluateAccessClaim(parsed.data, bundle);
+    store.appendAccessGrant(grant);
+
+    return c.json({ grant }, grant.status === "GRANTED" ? 201 : 403);
+  });
+
+  app.post("/api/amm/quote", async (c) => {
+    const parsed = await parseLimitedJson(c, ammQuoteRequestSchema);
+    if (!parsed.ok) {
+      return c.json(parsed.payload, parsed.status);
+    }
+
+    const bundle = buildMarketBundle(parsed.data.trackingNumber);
+    const market = bundle.markets.find((item) => item.id === parsed.data.marketId);
+    if (!market) {
+      return c.json({ error: "Market does not exist for this tracking number." }, 404);
+    }
+
+    return c.json({
+      quote: quotePrivateAmm({
+        market,
+        side: parsed.data.side,
+        contracts: parsed.data.contracts,
+        existingOrders: store.listOrders(100)
+      })
+    });
+  });
+
   app.post("/api/orders", async (c) => {
     const parsed = await parseLimitedJson(c, orderRequestSchema);
     if (!parsed.ok) {
@@ -79,6 +147,87 @@ export function createApp(options: { store?: PilotStore; serveStatic?: boolean }
   });
 
   app.get("/api/ledger", (c) => c.json({ orders: store.listPublicOrders(50) }));
+
+  app.post("/api/private/orders", async (c) => {
+    const parsed = await parseLimitedJson(c, privateOrderRequestSchema);
+    if (!parsed.ok) {
+      return c.json(parsed.payload, parsed.status);
+    }
+
+    const bundle = buildMarketBundle(parsed.data.trackingNumber);
+    const market = bundle.markets.find((item) => item.id === parsed.data.marketId);
+    if (!market) {
+      return c.json({ error: "Market does not exist for this tracking number." }, 404);
+    }
+    if (market.status !== "OPEN") {
+      return c.json({ error: `Market is ${market.status}; private AMM orders are locked.` }, 409);
+    }
+
+    const grant = store.findAccessGrant(parsed.data.accessGrantId);
+    if (!grant || grant.status !== "GRANTED") {
+      return c.json({ error: "Recipient access grant is required." }, 403);
+    }
+    if (grant.trackingNumberHash !== market.trackingNumberHash) {
+      return c.json({ error: "Recipient access grant does not match this package." }, 403);
+    }
+    if (new Date(grant.expiresAt).getTime() <= Date.now()) {
+      return c.json({ error: "Recipient access grant has expired." }, 403);
+    }
+
+    const quote = quotePrivateAmm({
+      market,
+      side: parsed.data.side,
+      contracts: parsed.data.contracts,
+      existingOrders: store.listOrders(100)
+    });
+    const order = createPrivateAmmPaperOrder({
+      quote,
+      accountId: grant.walletAddress
+    });
+    store.appendOrder(order);
+
+    return c.json(
+      {
+        order: toPublicOrder(order),
+        quote,
+        ledger: store.listPublicOrders(12),
+        testnetPreviews: buildPrivateMarketPreviews({ market, grant, quote, orderId: order.id })
+      },
+      201
+    );
+  });
+
+  app.post("/api/testnet/calldata", async (c) => {
+    const parsed = await parseLimitedJson(c, testnetPreviewRequestSchema);
+    if (!parsed.ok) {
+      return c.json(parsed.payload, parsed.status);
+    }
+
+    const bundle = buildMarketBundle(parsed.data.trackingNumber);
+    const market = bundle.markets.find((item) => item.id === parsed.data.marketId);
+    const grant = store.findAccessGrant(parsed.data.accessGrantId);
+    if (!market) return c.json({ error: "Market does not exist for this tracking number." }, 404);
+    if (!grant || grant.status !== "GRANTED") {
+      return c.json({ error: "Recipient access grant is required." }, 403);
+    }
+
+    const quote = quotePrivateAmm({
+      market,
+      side: parsed.data.side,
+      contracts: parsed.data.contracts,
+      existingOrders: store.listOrders(100)
+    });
+
+    return c.json({
+      quote,
+      testnetPreviews: buildPrivateMarketPreviews({
+        market,
+        grant,
+        quote,
+        orderId: parsed.data.orderId
+      })
+    });
+  });
 
   app.post("/api/risk/evaluate", async (c) => {
     const parsed = await parseLimitedJson(c, participantProfileSchema);
@@ -184,6 +333,8 @@ export function createApp(options: { store?: PilotStore; serveStatic?: boolean }
         "Keep the demo internal, connect a FedEx sandbox feed, then explore a regulated partner-exchange listing path rather than open public betting."
     })
   );
+
+  app.get("/api/venues/private-routes", (c) => c.json({ routes: getPrivateVenueRoutes() }));
 
   app.get("/api/admin/audit", requireAdmin, (c) =>
     c.json({

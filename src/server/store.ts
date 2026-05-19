@@ -1,6 +1,12 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { OracleEventRecord, PaperOrder, PublicPaperOrder, StoreSnapshot } from "../shared/types";
+import type {
+  OracleEventRecord,
+  PaperOrder,
+  PublicPaperOrder,
+  RecipientAccessGrant,
+  StoreSnapshot
+} from "../shared/types";
 
 const DEFAULT_DATA_DIR = join(process.cwd(), "data");
 const DEFAULT_MAX_RECORDS = Number(process.env.PILOT_LEDGER_MAX_RECORDS ?? 5000);
@@ -10,6 +16,7 @@ export class PilotStore {
   readonly maxRecords: number;
   private readonly ordersPath: string;
   private readonly oracleEventsPath: string;
+  private readonly accessGrantsPath: string;
 
   constructor(
     dataDir = process.env.DELIVERY_MARKETS_DATA_DIR ?? DEFAULT_DATA_DIR,
@@ -19,6 +26,7 @@ export class PilotStore {
     this.maxRecords = maxRecords;
     this.ordersPath = join(dataDir, "orders.jsonl");
     this.oracleEventsPath = join(dataDir, "oracle-events.jsonl");
+    this.accessGrantsPath = join(dataDir, "access-grants.jsonl");
     mkdirSync(dataDir, { recursive: true });
   }
 
@@ -48,12 +56,31 @@ export class PilotStore {
     return readJsonLines<OracleEventRecord>(this.oracleEventsPath).length + 1;
   }
 
+  appendAccessGrant(grant: RecipientAccessGrant): void {
+    appendJsonLine(this.accessGrantsPath, grant);
+    trimJsonlFile(this.accessGrantsPath, this.maxRecords);
+  }
+
+  listAccessGrants(limit = 50): RecipientAccessGrant[] {
+    return readJsonLines<RecipientAccessGrant>(this.accessGrantsPath)
+      .slice(-clampLimit(limit))
+      .reverse();
+  }
+
+  findAccessGrant(id: string): RecipientAccessGrant | undefined {
+    return readJsonLines<RecipientAccessGrant>(this.accessGrantsPath)
+      .reverse()
+      .find((grant) => grant.id === id);
+  }
+
   snapshot(): StoreSnapshot {
     const orders = readJsonLines<PaperOrder>(this.ordersPath);
     const oracleEvents = readJsonLines<OracleEventRecord>(this.oracleEventsPath);
+    const accessGrants = readJsonLines<RecipientAccessGrant>(this.accessGrantsPath);
     return {
       orderCount: orders.length,
       oracleEventCount: oracleEvents.length,
+      accessGrantCount: accessGrants.length,
       lastOrderId: orders.at(-1)?.id,
       lastOracleEventHash: oracleEvents.at(-1)?.eventHash,
       dataDir: this.dataDir,

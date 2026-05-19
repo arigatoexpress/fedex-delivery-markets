@@ -96,6 +96,36 @@ export interface PaperOrder {
   createdAt: string;
 }
 
+export type AccessGrantCapability =
+  | "VIEW_PRIVATE_MARKET"
+  | "QUOTE_PRIVATE_AMM"
+  | "SUBMIT_PRIVATE_ORDER"
+  | "PREVIEW_TESTNET_CALLDATA";
+
+export interface RecipientAccessPolicy {
+  trackingNumberHash: string;
+  packageAlias: string;
+  recipientScope: "recipient_only";
+  eligibleRelation: "recipient";
+  allowedWallets: string[];
+  claimCodeRequired: boolean;
+  demoClaimCode?: string;
+  cutoffAt: string;
+  status: "CLAIMABLE" | "LOCKED" | "RESOLVED";
+}
+
+export interface RecipientAccessGrant {
+  id: string;
+  trackingNumberHash: string;
+  walletAddress: string;
+  relationToShipment: "recipient";
+  status: "GRANTED" | "DENIED";
+  reason: string;
+  capabilities: AccessGrantCapability[];
+  expiresAt: string;
+  createdAt: string;
+}
+
 export interface PublicPaperOrder {
   id: string;
   marketId: string;
@@ -107,6 +137,54 @@ export interface PublicPaperOrder {
   reason: string;
   environment: "paper";
   createdAt: string;
+}
+
+export interface PrivateMarketQuote {
+  marketId: string;
+  trackingNumberHash: string;
+  side: OrderSide;
+  contracts: number;
+  spotPrice: number;
+  averagePrice: number;
+  limitPrice: number;
+  grossCostUsd: number;
+  spreadUsd: number;
+  totalCostUsd: number;
+  beforeProbability: number;
+  afterProbability: number;
+  slippageBps: number;
+  thetaDecayBps: number;
+  inventorySkewBps: number;
+  liquidityParameter: number;
+  maxContracts: number;
+  counterparty: "private-amm-bot";
+  cutoffAt: string;
+  generatedAt: string;
+  explanation: string;
+}
+
+export interface VenueRoute {
+  id: string;
+  label: string;
+  mode: "testnet-calldata" | "partner-required" | "read-only" | "blocked";
+  available: boolean;
+  network?: string;
+  summary: string;
+  constraints: string[];
+  sourceUrl: string;
+}
+
+export interface TestnetTransactionPreview {
+  id: string;
+  chainId: number;
+  chainName: string;
+  to: string;
+  functionName: string;
+  calldata: string;
+  requiresWalletSignature: boolean;
+  broadcastEnabled: boolean;
+  explorerUrl: string;
+  warnings: string[];
 }
 
 export type ParticipantRole =
@@ -168,6 +246,7 @@ export interface OracleEventRecord {
 export interface StoreSnapshot {
   orderCount: number;
   oracleEventCount: number;
+  accessGrantCount: number;
   lastOrderId?: string;
   lastOracleEventHash?: string;
   dataDir: string;
