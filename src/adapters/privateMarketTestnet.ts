@@ -4,6 +4,7 @@ import type {
   DeliveryMarket,
   PrivateMarketQuote,
   RecipientAccessGrant,
+  TestnetDeploymentPlan,
   TestnetTransactionPreview
 } from "../shared/types";
 import { shortHash } from "../domain/hash";
@@ -46,6 +47,17 @@ export function buildPrivateMarketPreviews(input: {
           initialYesBps
         ]
       }),
+      walletRequest: walletRequest(contractAddress, encodeFunctionData({
+        abi: PRIVATE_MARKET_ABI,
+        functionName: "createMarket",
+        args: [
+          marketKey,
+          trackingHash,
+          input.grant.walletAddress as `0x${string}`,
+          cutoffSeconds,
+          initialYesBps
+        ]
+      })),
       requiresWalletSignature: true,
       broadcastEnabled: false,
       explorerUrl: ROBINHOOD_CHAIN_TESTNET.explorerUrl,
@@ -68,6 +80,17 @@ export function buildPrivateMarketPreviews(input: {
           toBytes32(orderId)
         ]
       }),
+      walletRequest: walletRequest(contractAddress, encodeFunctionData({
+        abi: PRIVATE_MARKET_ABI,
+        functionName: "recordTrade",
+        args: [
+          marketKey,
+          input.quote.side === "YES",
+          BigInt(input.quote.contracts),
+          BigInt(Math.round(input.quote.limitPrice * 100)),
+          toBytes32(orderId)
+        ]
+      })),
       requiresWalletSignature: true,
       broadcastEnabled: false,
       explorerUrl: ROBINHOOD_CHAIN_TESTNET.explorerUrl,
@@ -81,6 +104,32 @@ export function buildPrivateMarketPreviews(input: {
   ];
 }
 
+export function getTestnetDeploymentPlan(): TestnetDeploymentPlan {
+  const contractAddress = process.env.PRIVATE_MARKET_CONTRACT_ADDRESS;
+  return {
+    chainId: ROBINHOOD_CHAIN_TESTNET.chainId,
+    chainName: ROBINHOOD_CHAIN_TESTNET.name,
+    targetContract: "PrivateDeliveryMarket",
+    contractAddress,
+    contractAddressConfigured: Boolean(contractAddress),
+    artifactCommand: "npm run contracts:build",
+    deployCommand: "npm run deploy:robinhood:testnet",
+    requiredEnv: [
+      "ROBINHOOD_CHAIN_RPC_URL",
+      "DEPLOYER_PRIVATE_KEY",
+      "DEPLOY_CONTRACTS=true",
+      "DEPLOY_PRIVATE_MARKET_CONTRACT=true"
+    ],
+    apiBroadcastEnabled: false,
+    walletBroadcastEnabled: false,
+    notes: [
+      "The API never signs or broadcasts transactions.",
+      "Deploy only with a testnet key after review.",
+      "Set PRIVATE_MARKET_CONTRACT_ADDRESS after deployment to replace the zero-address calldata preview target."
+    ]
+  };
+}
+
 function trackingHashToBytes32(value: string): `0x${string}` {
   return `0x${value.replace(/^sha256:/, "").padStart(64, "0").slice(0, 64)}`;
 }
@@ -88,4 +137,13 @@ function trackingHashToBytes32(value: string): `0x${string}` {
 function toBytes32(value: string): `0x${string}` {
   const hex = Buffer.from(value).toString("hex");
   return `0x${hex.padEnd(64, "0").slice(0, 64)}`;
+}
+
+function walletRequest(to: string, data: `0x${string}`) {
+  return {
+    to,
+    data,
+    value: "0x0" as const,
+    chainId: `0x${ROBINHOOD_CHAIN_TESTNET.chainId.toString(16)}`
+  };
 }

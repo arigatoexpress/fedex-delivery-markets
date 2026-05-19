@@ -1,13 +1,18 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { z } from "zod";
-import { buildPrivateMarketPreviews } from "../adapters/privateMarketTestnet";
+import {
+  buildPrivateMarketPreviews,
+  getTestnetDeploymentPlan
+} from "../adapters/privateMarketTestnet";
 import { getPrivateVenueRoutes } from "../adapters/privateVenues";
 import { buildMarketBundle, listDemoTrackingNumbers } from "../domain/deliveryMarkets";
 import {
   accessClaimRequestSchema,
   buildRecipientAccessPolicy,
-  evaluateAccessClaim
+  evaluateAccessClaim,
+  isAccessGrantSecretValid,
+  redactAccessGrant
 } from "../domain/access";
 import {
   ammQuoteRequestSchema,
@@ -31,7 +36,8 @@ import { securityHeaders } from "./securityHeaders";
 
 const trackingOnlySchema = z.object({ trackingNumber: z.string().min(8) });
 const privateOrderRequestSchema = ammQuoteRequestSchema.extend({
-  accessGrantId: z.string().min(8)
+  accessGrantId: z.string().min(8),
+  accessGrantSecret: z.string().min(8)
 });
 const testnetPreviewRequestSchema = privateOrderRequestSchema.extend({
   orderId: z.string().min(4).max(120).optional()
@@ -100,10 +106,13 @@ export function createApp(options: { store?: PilotStore; serveStatic?: boolean }
     }
 
     const bundle = buildMarketBundle(parsed.data.trackingNumber);
-    const grant = evaluateAccessClaim(parsed.data, bundle);
-    store.appendAccessGrant(grant);
+    const claim = evaluateAccessClaim(parsed.data, bundle);
+    store.appendAccessGrant(claim.grant);
 
-    return c.json({ grant }, grant.status === "GRANTED" ? 201 : 403);
+    return c.json(
+      { grant: redactAccessGrant(claim.grant), accessGrantSecret: claim.accessGrantSecret },
+      claim.grant.status === "GRANTED" ? 201 : 403
+    );
   });
 
   app.post("/api/amm/quote", async (c) => {
@@ -167,6 +176,9 @@ export function createApp(options: { store?: PilotStore; serveStatic?: boolean }
     if (!grant || grant.status !== "GRANTED") {
       return c.json({ error: "Recipient access grant is required." }, 403);
     }
+    if (!isAccessGrantSecretValid(grant, parsed.data.accessGrantSecret)) {
+      return c.json({ error: "Recipient access grant secret is invalid." }, 403);
+    }
     if (grant.trackingNumberHash !== market.trackingNumberHash) {
       return c.json({ error: "Recipient access grant does not match this package." }, 403);
     }
@@ -210,6 +222,9 @@ export function createApp(options: { store?: PilotStore; serveStatic?: boolean }
     if (!grant || grant.status !== "GRANTED") {
       return c.json({ error: "Recipient access grant is required." }, 403);
     }
+    if (!isAccessGrantSecretValid(grant, parsed.data.accessGrantSecret)) {
+      return c.json({ error: "Recipient access grant secret is invalid." }, 403);
+    }
 
     const quote = quotePrivateAmm({
       market,
@@ -228,6 +243,10 @@ export function createApp(options: { store?: PilotStore; serveStatic?: boolean }
       })
     });
   });
+
+  app.get("/api/testnet/deployment-plan", (c) =>
+    c.json({ deploymentPlan: getTestnetDeploymentPlan() })
+  );
 
   app.post("/api/risk/evaluate", async (c) => {
     const parsed = await parseLimitedJson(c, participantProfileSchema);

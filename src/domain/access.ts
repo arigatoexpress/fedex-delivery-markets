@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { findRecipientAccessFixture } from "../data/recipientAccess";
 import type {
@@ -17,6 +18,10 @@ export const accessClaimRequestSchema = z.object({
 });
 
 export type AccessClaimRequest = z.infer<typeof accessClaimRequestSchema>;
+export type AccessClaimResult = {
+  grant: RecipientAccessGrant;
+  accessGrantSecret?: string;
+};
 
 export function buildRecipientAccessPolicy(
   trackingNumber: string,
@@ -48,7 +53,7 @@ export function evaluateAccessClaim(
   request: AccessClaimRequest,
   bundle: DeliveryMarketBundle,
   now = new Date()
-): RecipientAccessGrant {
+): AccessClaimResult {
   const fixture = findRecipientAccessFixture(request.trackingNumber);
   const trackingNumberHash = sha256(bundle.shipment.trackingNumber);
   const walletAddress = request.walletAddress.toLowerCase();
@@ -100,7 +105,8 @@ export function evaluateAccessClaim(
     });
   }
 
-  return {
+  const accessGrantSecret = `ag_${randomBytes(24).toString("hex")}`;
+  const grant: RecipientAccessGrant = {
     id: `grant-${shortHash(`${trackingNumberHash}:${walletAddress}:${now.toISOString()}`)}`,
     trackingNumberHash,
     walletAddress,
@@ -113,9 +119,24 @@ export function evaluateAccessClaim(
       "SUBMIT_PRIVATE_ORDER",
       "PREVIEW_TESTNET_CALLDATA"
     ],
+    grantSecretHash: sha256(accessGrantSecret),
     expiresAt: expiresAt.toISOString(),
     createdAt: now.toISOString()
   };
+
+  return { grant, accessGrantSecret };
+}
+
+export function isAccessGrantSecretValid(
+  grant: RecipientAccessGrant,
+  accessGrantSecret: string
+): boolean {
+  return Boolean(grant.grantSecretHash) && sha256(accessGrantSecret) === grant.grantSecretHash;
+}
+
+export function redactAccessGrant(grant: RecipientAccessGrant): RecipientAccessGrant {
+  const { grantSecretHash: _grantSecretHash, ...redacted } = grant;
+  return redacted;
 }
 
 function deniedGrant(input: {
@@ -124,8 +145,8 @@ function deniedGrant(input: {
   reason: string;
   expiresAt: Date;
   now: Date;
-}): RecipientAccessGrant {
-  return {
+}): AccessClaimResult {
+  const grant: RecipientAccessGrant = {
     id: `denied-${shortHash(`${input.trackingNumberHash}:${input.walletAddress}:${input.now.toISOString()}`)}`,
     trackingNumberHash: input.trackingNumberHash,
     walletAddress: input.walletAddress,
@@ -136,4 +157,5 @@ function deniedGrant(input: {
     expiresAt: input.expiresAt.toISOString(),
     createdAt: input.now.toISOString()
   };
+  return { grant };
 }

@@ -18,12 +18,13 @@ recipient claim -> private AMM quote -> paper/testnet order receipt -> signed or
 
 - Recipient-only claim policy per synthetic tracking number.
 - Demo claim code and recipient wallet fixture.
-- Private access grants with explicit capabilities and expiry.
+- Private access grants with explicit capabilities, expiry, and hashed grant secrets.
 - LMSR AMM quote engine with theta decay, inventory skew, and max-contract controls.
 - Recipient-gated private AMM paper orders.
 - Redacted public ledger.
 - Unsigned Robinhood Chain / Arbitrum-compatible calldata previews.
 - `PrivateDeliveryMarket.sol`, a recipient-only testnet receipt contract with no custody.
+- Contract artifact builder and fail-closed Robinhood Chain deploy script.
 
 ## Venue Reality
 

@@ -19,7 +19,10 @@ The application currently exposes no route for:
 - mainnet settlement;
 - real FedEx production API access.
 
-The deploy script also requires `DEPLOY_CONTRACTS=true` before initializing a testnet deployment client.
+The deploy script also requires both `DEPLOY_CONTRACTS=true` and
+`DEPLOY_PRIVATE_MARKET_CONTRACT=true` before broadcasting a testnet deployment.
+It reads `artifacts/contracts/PrivateDeliveryMarket.json`, so `npm run
+contracts:build` must succeed first.
 
 ## Oracle Trust
 
@@ -40,6 +43,18 @@ The app includes a separate risk engine for participant profiles. It warns or bl
 - unreviewed jurisdictions.
 
 Paper simulation remains allowed so product teams can test UX and market design.
+
+## Recipient Access Controls
+
+Private AMM routes require:
+
+- a package-scoped access grant;
+- a matching recipient wallet in the package policy;
+- the package claim code fixture;
+- the one-time grant secret returned at claim time.
+
+The server persists only `grantSecretHash`, never the raw grant secret. A leaked
+grant id by itself cannot submit private orders or generate calldata previews.
 
 ## Required Reviews Before Production
 

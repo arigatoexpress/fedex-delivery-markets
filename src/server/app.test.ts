@@ -172,6 +172,8 @@ describe("api", () => {
     expect(response.status).toBe(201);
     expect(payload.grant.status).toBe("GRANTED");
     expect(payload.grant.capabilities).toContain("SUBMIT_PRIVATE_ORDER");
+    expect(payload.accessGrantSecret).toMatch(/^ag_/);
+    expect(payload.grant.grantSecretHash).toBeUndefined();
     expect(store.snapshot().accessGrantCount).toBe(1);
   });
 
@@ -190,6 +192,7 @@ describe("api", () => {
 
     expect(response.status).toBe(403);
     expect(payload.grant.status).toBe("DENIED");
+    expect(payload.accessGrantSecret).toBeUndefined();
     expect(payload.grant.reason).toContain("Wallet is not");
   });
 
@@ -228,11 +231,44 @@ describe("api", () => {
         marketId: bundle.markets[0].id,
         side: "YES",
         contracts: 5,
-        accessGrantId: "grant-missing"
+        accessGrantId: "grant-missing",
+        accessGrantSecret: "ag_missing"
       })
     });
 
     expect(response.status).toBe(403);
+  });
+
+  it("rejects private AMM orders when the grant secret is wrong", async () => {
+    const store = createPilotStore(tempDataDir());
+    const app = createApp({ store });
+    const bundleResponse = await app.request("/api/tracking/771234567890");
+    const bundle = await bundleResponse.json();
+    const grantResponse = await app.request("/api/access/claim", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        trackingNumber: "771234567890",
+        walletAddress: "0x1111111111111111111111111111111111111111",
+        claimCode: "AUSTIN-DENVER-RECIPIENT"
+      })
+    });
+    const grantPayload = await grantResponse.json();
+    const response = await app.request("/api/private/orders", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        trackingNumber: "771234567890",
+        marketId: bundle.markets[0].id,
+        side: "YES",
+        contracts: 5,
+        accessGrantId: grantPayload.grant.id,
+        accessGrantSecret: "ag_wrong"
+      })
+    });
+
+    expect(response.status).toBe(403);
+    expect(store.snapshot().orderCount).toBe(0);
   });
 
   it("submits private AMM paper orders and returns testnet calldata previews", async () => {
@@ -258,7 +294,8 @@ describe("api", () => {
         marketId: bundle.markets[0].id,
         side: "YES",
         contracts: 5,
-        accessGrantId: grantPayload.grant.id
+        accessGrantId: grantPayload.grant.id,
+        accessGrantSecret: grantPayload.accessGrantSecret
       })
     });
     const payload = await response.json();
@@ -267,10 +304,23 @@ describe("api", () => {
     expect(payload.order.accountId).toBeUndefined();
     expect(payload.quote.counterparty).toBe("private-amm-bot");
     expect(payload.testnetPreviews[0].chainId).toBe(46630);
+    expect(payload.testnetPreviews[0].walletRequest.chainId).toBe("0xb626");
     expect(payload.testnetPreviews.every((preview: { broadcastEnabled: boolean }) => !preview.broadcastEnabled)).toBe(
       true
     );
     expect(store.snapshot().orderCount).toBe(1);
+  });
+
+  it("reports a testnet deployment plan without enabling API broadcast", async () => {
+    const app = createApp({ store: createPilotStore(tempDataDir()) });
+    const response = await app.request("/api/testnet/deployment-plan");
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.deploymentPlan.chainId).toBe(46630);
+    expect(payload.deploymentPlan.targetContract).toBe("PrivateDeliveryMarket");
+    expect(payload.deploymentPlan.apiBroadcastEnabled).toBe(false);
+    expect(payload.deploymentPlan.requiredEnv).toContain("DEPLOY_PRIVATE_MARKET_CONTRACT=true");
   });
 
   it("evaluates participant risk separately from paper order acceptance", async () => {

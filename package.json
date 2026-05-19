@@ -9,6 +9,8 @@
     "dev:api": "tsx watch src/server/index.ts",
     "dev:web": "vite --host 127.0.0.1 --port 5178",
     "start": "tsx src/server/index.ts",
+    "contracts:build": "tsx scripts/build-contract-artifacts.ts",
+    "deploy:robinhood:testnet": "tsx scripts/deploy-robinhood-chain.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "build": "tsc --noEmit && vite build",

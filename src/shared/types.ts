@@ -122,6 +122,7 @@ export interface RecipientAccessGrant {
   status: "GRANTED" | "DENIED";
   reason: string;
   capabilities: AccessGrantCapability[];
+  grantSecretHash?: string;
   expiresAt: string;
   createdAt: string;
 }
@@ -181,10 +182,30 @@ export interface TestnetTransactionPreview {
   to: string;
   functionName: string;
   calldata: string;
+  walletRequest: {
+    to: string;
+    data: string;
+    value: "0x0";
+    chainId: string;
+  };
   requiresWalletSignature: boolean;
   broadcastEnabled: boolean;
   explorerUrl: string;
   warnings: string[];
+}
+
+export interface TestnetDeploymentPlan {
+  chainId: number;
+  chainName: string;
+  targetContract: "PrivateDeliveryMarket";
+  contractAddress?: string;
+  contractAddressConfigured: boolean;
+  artifactCommand: string;
+  deployCommand: string;
+  requiredEnv: string[];
+  apiBroadcastEnabled: false;
+  walletBroadcastEnabled: false;
+  notes: string[];
 }
 
 export type ParticipantRole =

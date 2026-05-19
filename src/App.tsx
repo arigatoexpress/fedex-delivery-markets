@@ -28,6 +28,7 @@ import type {
   RecipientAccessPolicy,
   ResearchReference,
   SecurityPosture,
+  TestnetDeploymentPlan,
   TestnetTransactionPreview,
   VenueRoute
 } from "./shared/types";
@@ -73,9 +74,11 @@ export default function App() {
   const [accessGrant, setAccessGrant] = useState<RecipientAccessGrant | null>(null);
   const [quote, setQuote] = useState<PrivateMarketQuote | null>(null);
   const [testnetPreviews, setTestnetPreviews] = useState<TestnetTransactionPreview[]>([]);
+  const [deploymentPlan, setDeploymentPlan] = useState<TestnetDeploymentPlan | null>(null);
   const [venueRoutes, setVenueRoutes] = useState<VenueRoute[]>([]);
   const [walletAddress, setWalletAddress] = useState("0x1111111111111111111111111111111111111111");
   const [claimCode, setClaimCode] = useState("AUSTIN-DENVER-RECIPIENT");
+  const [accessGrantSecret, setAccessGrantSecret] = useState<string | null>(null);
   const [selectedMarketId, setSelectedMarketId] = useState<string | null>(null);
   const [contracts, setContracts] = useState(5);
   const [orderSide, setOrderSide] = useState<OrderSide>("YES");
@@ -92,6 +95,9 @@ export default function App() {
       fetchJson<{ orders: PublicPaperOrder[] }>("/api/ledger").then((data) => setLedger(data.orders)),
       fetchJson<{ routes: VenueRoute[] }>("/api/venues/private-routes").then((data) =>
         setVenueRoutes(data.routes)
+      ),
+      fetchJson<{ deploymentPlan: TestnetDeploymentPlan }>("/api/testnet/deployment-plan").then(
+        (data) => setDeploymentPlan(data.deploymentPlan)
       )
     ]);
   }, []);
@@ -129,6 +135,7 @@ export default function App() {
       setBundle(data);
       setAccessPolicy(policyPayload.policy);
       setAccessGrant(null);
+      setAccessGrantSecret(null);
       setTestnetPreviews([]);
       if (policyPayload.policy.allowedWallets[0]) {
         setWalletAddress(policyPayload.policy.allowedWallets[0]);
@@ -172,12 +179,16 @@ export default function App() {
   }
 
   async function claimRecipientAccess() {
-    const payload = await postJson<{ grant: RecipientAccessGrant }>("/api/access/claim", {
+    const payload = await postJson<{
+      grant: RecipientAccessGrant;
+      accessGrantSecret?: string;
+    }>("/api/access/claim", {
       trackingNumber,
       walletAddress,
       claimCode
     });
     setAccessGrant(payload.grant);
+    setAccessGrantSecret(payload.accessGrantSecret ?? null);
     setNotice(payload.grant.reason);
   }
 
@@ -214,7 +225,7 @@ export default function App() {
   }
 
   async function submitPrivateOrder(market: DeliveryMarket, side: OrderSide) {
-    if (!accessGrant || accessGrant.status !== "GRANTED") {
+    if (!accessGrant || accessGrant.status !== "GRANTED" || !accessGrantSecret) {
       setNotice("Claim recipient access before submitting a private AMM order.");
       return;
     }
@@ -228,7 +239,8 @@ export default function App() {
       marketId: market.id,
       side,
       contracts,
-      accessGrantId: accessGrant.id
+      accessGrantId: accessGrant.id,
+      accessGrantSecret
     });
     setQuote(payload.quote);
     setLedger(payload.ledger);
@@ -237,7 +249,7 @@ export default function App() {
   }
 
   async function previewTestnetCalldata(market: DeliveryMarket, side: OrderSide) {
-    if (!accessGrant || accessGrant.status !== "GRANTED") {
+    if (!accessGrant || accessGrant.status !== "GRANTED" || !accessGrantSecret) {
       setNotice("Claim recipient access before previewing testnet calldata.");
       return;
     }
@@ -249,7 +261,8 @@ export default function App() {
       marketId: market.id,
       side,
       contracts,
-      accessGrantId: accessGrant.id
+      accessGrantId: accessGrant.id,
+      accessGrantSecret
     });
     setQuote(payload.quote);
     setTestnetPreviews(payload.testnetPreviews);
@@ -633,6 +646,16 @@ export default function App() {
             <RadioTower size={18} />
           </div>
           <div className="calldata-list">
+            {deploymentPlan ? (
+              <div className="calldata-row deploy-plan-row">
+                <strong>{deploymentPlan.targetContract}</strong>
+                <span>{deploymentPlan.chainName}</span>
+                <small>
+                  API broadcast {deploymentPlan.apiBroadcastEnabled ? "enabled" : "blocked"} · contract{" "}
+                  {deploymentPlan.contractAddressConfigured ? "configured" : "not configured"}
+                </small>
+              </div>
+            ) : null}
             {testnetPreviews.length ? (
               testnetPreviews.map((preview) => (
                 <div className="calldata-row" key={preview.id}>

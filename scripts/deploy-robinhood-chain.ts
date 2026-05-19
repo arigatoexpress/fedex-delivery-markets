@@ -1,4 +1,6 @@
-import { createWalletClient, http } from "viem";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { createPublicClient, createWalletClient, http, type Abi } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { ROBINHOOD_CHAIN_TESTNET } from "../src/shared/constants";
 
@@ -8,9 +10,16 @@ if (process.env.DEPLOY_CONTRACTS !== "true") {
 
 const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
 const rpcUrl = process.env.ROBINHOOD_CHAIN_RPC_URL ?? ROBINHOOD_CHAIN_TESTNET.publicRpcUrl;
+const deployPrivateMarket = process.env.DEPLOY_PRIVATE_MARKET_CONTRACT === "true";
 
 if (!privateKey?.startsWith("0x")) {
   throw new Error("DEPLOYER_PRIVATE_KEY must be a 0x-prefixed testnet key.");
+}
+
+if (!deployPrivateMarket) {
+  throw new Error(
+    "Refusing to deploy. Set DEPLOY_PRIVATE_MARKET_CONTRACT=true after audit approval."
+  );
 }
 
 const account = privateKeyToAccount(privateKey as `0x${string}`);
@@ -36,9 +45,38 @@ const client = createWalletClient({
   transport: http(rpcUrl)
 });
 
+const publicClient = createPublicClient({
+  chain: robinhoodChain,
+  transport: http(rpcUrl)
+});
+
+const artifact = JSON.parse(
+  readFileSync(join(process.cwd(), "artifacts", "contracts", "PrivateDeliveryMarket.json"), "utf8")
+) as {
+  abi: Abi;
+  bytecode: `0x${string}`;
+};
+
 console.log({
-  message:
-    "Deployment client initialized. Compile and pass bytecode/ABI only after contract audit and testnet approval.",
+  message: "Deploying PrivateDeliveryMarket to Robinhood Chain testnet.",
   chainId: client.chain.id,
-  account: account.address
+  account: account.address,
+  rpcUrl
+});
+
+const hash = await client.deployContract({
+  abi: artifact.abi,
+  bytecode: artifact.bytecode,
+  account
+});
+
+console.log({ hash, explorerUrl: `${ROBINHOOD_CHAIN_TESTNET.explorerUrl}/tx/${hash}` });
+
+const receipt = await publicClient.waitForTransactionReceipt({ hash });
+console.log({
+  contractAddress: receipt.contractAddress,
+  status: receipt.status,
+  explorerUrl: receipt.contractAddress
+    ? `${ROBINHOOD_CHAIN_TESTNET.explorerUrl}/address/${receipt.contractAddress}`
+    : undefined
 });

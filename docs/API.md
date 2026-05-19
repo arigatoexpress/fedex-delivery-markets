@@ -32,7 +32,7 @@ Creates a recipient access grant when the wallet and package claim code match th
 }
 ```
 
-Granted capabilities include private market viewing, AMM quoting, private paper order submission, and testnet calldata preview. Production should replace the fixture claim code with FedEx Identity / recipient-account authorization.
+The response returns a redacted grant plus `accessGrantSecret`. The server stores only the secret hash and requires both `accessGrantId` and `accessGrantSecret` for private orders and calldata preview. Granted capabilities include private market viewing, AMM quoting, private paper order submission, and testnet calldata preview. Production should replace the fixture claim code with FedEx Identity / recipient-account authorization.
 
 ### `POST /api/amm/quote`
 
@@ -57,7 +57,8 @@ Creates a recipient-gated private AMM paper order. Requires a granted access tok
   "marketId": "abc123-day-2026-05-18",
   "side": "YES",
   "contracts": 5,
-  "accessGrantId": "grant-..."
+  "accessGrantId": "grant-...",
+  "accessGrantSecret": "ag_..."
 }
 ```
 
@@ -66,6 +67,23 @@ The response returns a redacted order, the AMM quote, the redacted public ledger
 ### `POST /api/testnet/calldata`
 
 Returns `createMarket` and `recordTrade` calldata previews for the private market receipt contract. Requires recipient access. Set `PRIVATE_MARKET_CONTRACT_ADDRESS` to preview a concrete deployed target; otherwise the response uses the zero-address placeholder and warning.
+
+Each preview includes a MetaMask-compatible `walletRequest` envelope:
+
+```json
+{
+  "to": "0x...",
+  "data": "0x...",
+  "value": "0x0",
+  "chainId": "0xb626"
+}
+```
+
+The app still does not call `eth_sendTransaction`; this is a handoff artifact only.
+
+### `GET /api/testnet/deployment-plan`
+
+Returns the contract build/deploy commands, required testnet environment variables, target chain, and explicit `apiBroadcastEnabled: false` posture.
 
 ### `GET /api/venues/private-routes`
 

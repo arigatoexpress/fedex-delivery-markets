@@ -31,6 +31,8 @@ Demo tracking numbers:
 
 ```bash
 npm run verify
+npm run contracts:build
+npm run browser:smoke
 ```
 
 ## Pilot Infrastructure
@@ -55,6 +57,19 @@ Deployment scaffolds:
 - `Dockerfile`
 - `infra/docker-compose.yml`
 - `infra/render.yaml`
+
+Testnet deploy path:
+
+```bash
+npm run contracts:build
+DEPLOY_CONTRACTS=true \
+DEPLOY_PRIVATE_MARKET_CONTRACT=true \
+ROBINHOOD_CHAIN_RPC_URL=https://... \
+DEPLOYER_PRIVATE_KEY=0x... \
+npm run deploy:robinhood:testnet
+```
+
+Do not use a mainnet key. The deploy script only targets the receipt contract and still does not enable live funds, exchange routing, or settlement.
 
 ## Safety Posture
 
