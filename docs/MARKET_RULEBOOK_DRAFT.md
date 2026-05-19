@@ -41,11 +41,19 @@ The primary resolution source is an authorized FedEx event feed. The demo models
 
 ## Participant Restrictions
 
-Any real-money pilot should restrict or exclude:
+The current product shape is recipient-only for private paper/testnet markets:
+
+- the recipient wallet must match the package access policy;
+- the package claim code must match;
+- private orders must include the grant secret issued at claim time;
+- trading remains blocked after first hub cutoff or resolution.
+
+Any real-money pilot should further restrict or exclude:
 
 - FedEx employees and contractors;
 - delivery drivers and station operators;
-- shippers and recipients unless explicitly approved for a limited promotional/non-cash format;
+- shippers unless explicitly approved;
+- recipients unless the regulated venue approves a limited, disclosed recipient-only product;
 - anyone with non-public routing, staffing, exception, or delivery-priority information.
 
 ## Surveillance

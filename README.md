@@ -50,7 +50,7 @@ npm run browser:smoke
 - Participant risk route: `/api/risk/evaluate`
 - Contract compile coverage for `contracts/DeliveryMarketResolver.sol`
 
-See [API.md](docs/API.md), [AMM_MATH.md](docs/AMM_MATH.md), [PRIVATE_MARKET_PRODUCT_PLAN.md](docs/PRIVATE_MARKET_PRODUCT_PLAN.md), [PILOT_PLAN.md](docs/PILOT_PLAN.md), [SECURITY_AND_COMPLIANCE.md](docs/SECURITY_AND_COMPLIANCE.md), and [MARKET_RULEBOOK_DRAFT.md](docs/MARKET_RULEBOOK_DRAFT.md).
+See [API.md](docs/API.md), [AMM_MATH.md](docs/AMM_MATH.md), [PRIVATE_MARKET_PRODUCT_PLAN.md](docs/PRIVATE_MARKET_PRODUCT_PLAN.md), [TESTNET_RUNBOOK.md](docs/TESTNET_RUNBOOK.md), [PILOT_PLAN.md](docs/PILOT_PLAN.md), [SECURITY_AND_COMPLIANCE.md](docs/SECURITY_AND_COMPLIANCE.md), and [MARKET_RULEBOOK_DRAFT.md](docs/MARKET_RULEBOOK_DRAFT.md).
 
 Deployment scaffolds:
 

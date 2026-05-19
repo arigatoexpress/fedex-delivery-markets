@@ -65,3 +65,16 @@ grant id by itself cannot submit private orders or generate calldata previews.
 - Consumer-risk disclosures.
 - Insider/manipulation surveillance model.
 - Incident, correction, dispute, and exception handling.
+
+## Dependency Audit Note
+
+`npm audit --audit-level=high` passes locally. The broader audit still reports
+low/moderate advisories in third-party SDK/tooling transitive dependencies:
+
+- `@hashgraph/sdk` via ethers v5 packages;
+- `@polymarket/clob-client-v2` via ethers/ws packages;
+- `solc` via `tmp`.
+
+The available forced fixes are breaking downgrades for the current SDK set, so
+the pilot keeps these packages isolated to read-only, testnet, or build-time
+paths until compatible patched releases are available.
