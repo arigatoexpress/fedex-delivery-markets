@@ -60,11 +60,15 @@ Real-money pilot eligibility currently always returns `false`.
 
 ### `GET /api/oracle/events`
 
-Returns recent oracle event records.
+Returns recent oracle event records. Requires admin authorization.
 
 ### `POST /api/oracle/events`
 
-Records an oracle event to the pilot ledger. If `ORACLE_SIGNER_ADDRESS` is configured, the payload must include an EIP-712 signature from that address.
+Records an oracle event to the pilot ledger. Requires admin authorization. By
+default, the payload must include an EIP-712 signature from
+`ORACLE_SIGNER_ADDRESS`; unsigned fixture events require the explicit
+non-production `ALLOW_FIXTURE_ORACLE_EVENTS=true` escape hatch. The route never
+submits a live Hedera message or EVM resolution.
 
 ```json
 {
@@ -86,7 +90,10 @@ The route returns `liveResolutionSubmitted: false`.
 
 ## Admin Routes
 
-Admin routes are open in local development unless `DELIVERY_MARKETS_ADMIN_TOKEN` is configured. When configured, send `Authorization: Bearer <token>`.
+Admin routes fail closed by default. Set `DELIVERY_MARKETS_ADMIN_TOKEN` and send
+`Authorization: Bearer <token>`. For local-only demos, `ALLOW_DEV_OPEN_ADMIN=true`
+opens admin routes when `NODE_ENV !== "production"` and adds the
+`x-delivery-markets-auth: dev-open-admin` response header.
 
 ### `GET /api/admin/audit`
 
