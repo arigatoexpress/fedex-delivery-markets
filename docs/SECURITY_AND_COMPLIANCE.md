@@ -24,6 +24,14 @@ The deploy script also requires both `DEPLOY_CONTRACTS=true` and
 It reads `artifacts/contracts/PrivateDeliveryMarket.json`, so `npm run
 contracts:build` must succeed first.
 
+## Production Runtime
+
+The production Docker image runs `node dist-server/index.js` as the non-root
+`node` user. It copies the bundled server output and static client build instead
+of running `tsx` against source files in the runtime container. The Docker build
+context is constrained by `.dockerignore` so local `node_modules`, data,
+artifacts, and generated outputs cannot be copied into the Linux image.
+
 ## Oracle Trust
 
 The pilot supports two oracle modes:

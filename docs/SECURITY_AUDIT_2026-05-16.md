@@ -5,11 +5,13 @@ Repo: `/Users/aribs/Code/fedex-delivery-markets`
 Commit audited: `39071a1` plus current uncommitted security-audit report  
 Scope: React/Vite frontend, Hono API, oracle/risk/order domains, JSONL persistence, Solidity resolver, Docker/Render/CI scaffolding.
 
-Remediation update: 2026-05-19, current branch `fix/stable-demo-market-clock`
-at `47aa517`. The original audit findings below remain as historical evidence
-for commit `39071a1`; the current implementation has remediated the two
-critical fail-open findings and several high/medium demo-hardening issues.
-Current `/api/readiness` is the source of truth for live operator posture.
+Remediation update: 2026-05-20, current branch `feat/private-recipient-amm`.
+The original audit findings below remain as historical evidence for commit
+`39071a1`; the current implementation has remediated the two critical fail-open
+findings, recipient/private-order authorization gaps, and the production Docker
+runtime concern by bundling the server and running the container as the non-root
+`node` user. Current `/api/readiness` is the source of truth for live operator
+posture.
 
 ## Executive Summary
 
@@ -45,9 +47,11 @@ Positive findings: no committed production secrets were found, no obvious React 
 Current remediation evidence on 2026-05-19:
 
 - `npm run verify`: passed.
-- Vitest: 13 tests passed.
+- Vitest: 21 tests passed as of 2026-05-20.
 - Production build: passed.
 - Browser smoke: passed against `http://127.0.0.1:5178`.
+- Production-style compiled server smoke: `PORT=4753 NODE_ENV=production npm run start` served `/health`, `/api/testnet/deployment-plan`, and returned `401` for unauthenticated `/api/admin/audit`.
+- Docker production image smoke: `docker build -t fedex-delivery-markets:local .` passed after adding `.dockerignore`; `docker run` served `/health` and `/api/testnet/deployment-plan`, returned `401` for unauthenticated `/api/admin/audit`, and ran as uid `1000`.
 - Runtime probe: `GET /api/admin/audit` returned `401 Unauthorized` without authorization when `DELIVERY_MARKETS_ADMIN_TOKEN` was unset.
 - Runtime probe: `GET /api/readiness` returned `securityPosture.adminAuthMode: "locked"`, `oracleMode: "locked"`, `adminRoutesFailClosed: true`, `oracleEventsRequireSignature: true`, `publicLedgerRedacted: true`, `rejectedOrdersPersisted: false`, `rateLimitsEnabled: true`, and all live money/FedEx/order-signing gates `false`.
 
