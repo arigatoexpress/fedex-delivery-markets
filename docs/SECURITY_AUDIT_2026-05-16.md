@@ -44,12 +44,14 @@ Positive findings: no committed production secrets were found, no obvious React 
 
 ## Verification Evidence
 
-Current remediation evidence on 2026-05-19:
+Current remediation evidence on 2026-05-20:
 
 - `npm run verify`: passed.
-- Vitest: 21 tests passed as of 2026-05-20.
+- Vitest: 23 tests passed as of 2026-05-20.
 - Production build: passed.
-- Browser smoke: passed against `http://127.0.0.1:5178`.
+- Browser smoke: passed against `http://127.0.0.1:5178`, including wallet-ops panel coverage.
+- Wallet readiness route: `/api/wallet/readiness` returns `liveFundsAllowed: false`, `serverSideSigning: "disabled"`, Robinhood Chain wallet `not_configured`, and Solana `not_required` when no public wallet address is configured.
+- Dependency audit: `npm audit --audit-level=high` passes; broader JSON audit shows 16 low, 0 moderate, 0 high, 0 critical advisories after the `viem` update and `ws` override.
 - Production-style compiled server smoke: `PORT=4753 NODE_ENV=production npm run start` served `/health`, `/api/testnet/deployment-plan`, and returned `401` for unauthenticated `/api/admin/audit`.
 - Docker production image smoke: `docker build -t fedex-delivery-markets:local .` passed after adding `.dockerignore`; `docker run` served `/health` and `/api/testnet/deployment-plan`, returned `401` for unauthenticated `/api/admin/audit`, and ran as uid `1000`.
 - Runtime probe: `GET /api/admin/audit` returned `401 Unauthorized` without authorization when `DELIVERY_MARKETS_ADMIN_TOKEN` was unset.

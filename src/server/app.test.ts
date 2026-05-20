@@ -120,9 +120,59 @@ describe("api", () => {
 
     expect(response.status).toBe(200);
     expect(payload.liveMoneyMovementAllowed).toBe(false);
+    expect(payload.walletReadiness.liveFundsAllowed).toBe(false);
+    expect(payload.walletReadiness.serverSideSigning).toBe("disabled");
     expect(payload.securityPosture.adminRoutesFailClosed).toBe(true);
     expect(payload.securityPosture.publicLedgerRedacted).toBe(true);
     expect(payload.integrations.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("reports wallet readiness without requiring live funds", async () => {
+    const previousWallet = process.env.DELIVERY_MARKETS_TESTNET_WALLET_ADDRESS;
+    const previousSolanaWallet = process.env.SOLANA_TESTNET_WALLET_ADDRESS;
+    delete process.env.DELIVERY_MARKETS_TESTNET_WALLET_ADDRESS;
+    delete process.env.SOLANA_TESTNET_WALLET_ADDRESS;
+    const app = createApp({ store: createPilotStore(tempDataDir()) });
+    const response = await app.request("/api/wallet/readiness");
+    const payload = await response.json();
+
+    restoreEnv("DELIVERY_MARKETS_TESTNET_WALLET_ADDRESS", previousWallet);
+    restoreEnv("SOLANA_TESTNET_WALLET_ADDRESS", previousSolanaWallet);
+
+    expect(response.status).toBe(200);
+    expect(payload.walletReadiness.liveFundsAllowed).toBe(false);
+    expect(payload.walletReadiness.serverSideSigning).toBe("disabled");
+    expect(payload.walletReadiness.rails).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "robinhood-chain-gas-wallet",
+          status: "not_configured",
+          liveFundsAllowed: false
+        }),
+        expect.objectContaining({
+          id: "solana-reference-wallet",
+          status: "not_required",
+          liveFundsAllowed: false
+        })
+      ])
+    );
+  });
+
+  it("blocks invalid wallet readiness addresses before RPC checks", async () => {
+    const previousWallet = process.env.DELIVERY_MARKETS_TESTNET_WALLET_ADDRESS;
+    process.env.DELIVERY_MARKETS_TESTNET_WALLET_ADDRESS = "not-a-wallet";
+    const app = createApp({ store: createPilotStore(tempDataDir()) });
+    const response = await app.request("/api/wallet/readiness");
+    const payload = await response.json();
+    const evmRail = payload.walletReadiness.rails.find(
+      (rail: { id: string }) => rail.id === "robinhood-chain-gas-wallet"
+    );
+
+    restoreEnv("DELIVERY_MARKETS_TESTNET_WALLET_ADDRESS", previousWallet);
+
+    expect(response.status).toBe(200);
+    expect(evmRail.status).toBe("blocked");
+    expect(evmRail.canDeployTestnet).toBe(false);
   });
 
   it("fails closed for admin routes by default", async () => {
@@ -441,4 +491,12 @@ describe("api", () => {
 
 function tempDataDir(): string {
   return mkdtempSync(join(tmpdir(), "fedex-delivery-markets-test-"));
+}
+
+function restoreEnv(name: string, value: string | undefined): void {
+  if (value === undefined) {
+    delete process.env[name];
+  } else {
+    process.env[name] = value;
+  }
 }

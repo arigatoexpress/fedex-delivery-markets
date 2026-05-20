@@ -14,7 +14,8 @@ import {
   ScanLine,
   ShieldCheck,
   Sparkles,
-  Truck
+  Truck,
+  Wallet
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type {
@@ -30,7 +31,9 @@ import type {
   SecurityPosture,
   TestnetDeploymentPlan,
   TestnetTransactionPreview,
-  VenueRoute
+  VenueRoute,
+  WalletReadiness,
+  WalletRailStatus
 } from "./shared/types";
 
 declare global {
@@ -52,6 +55,7 @@ type ReadinessResponse = {
   liveOrderSigningAllowed: boolean;
   securityPosture: SecurityPosture;
   integrations: IntegrationReadiness[];
+  walletReadiness: WalletReadiness;
   blockers: string[];
 };
 
@@ -75,6 +79,7 @@ export default function App() {
   const [quote, setQuote] = useState<PrivateMarketQuote | null>(null);
   const [testnetPreviews, setTestnetPreviews] = useState<TestnetTransactionPreview[]>([]);
   const [deploymentPlan, setDeploymentPlan] = useState<TestnetDeploymentPlan | null>(null);
+  const [walletReadiness, setWalletReadiness] = useState<WalletReadiness | null>(null);
   const [venueRoutes, setVenueRoutes] = useState<VenueRoute[]>([]);
   const [walletAddress, setWalletAddress] = useState("0x1111111111111111111111111111111111111111");
   const [claimCode, setClaimCode] = useState("AUSTIN-DENVER-RECIPIENT");
@@ -91,6 +96,9 @@ export default function App() {
         setTrackingNumbers(data.trackingNumbers)
       ),
       fetchJson<ReadinessResponse>("/api/readiness").then(setReadiness),
+      fetchJson<{ walletReadiness: WalletReadiness }>("/api/wallet/readiness").then((data) =>
+        setWalletReadiness(data.walletReadiness)
+      ),
       fetchJson<ResearchResponse>("/api/research").then(setResearch),
       fetchJson<{ orders: PublicPaperOrder[] }>("/api/ledger").then((data) => setLedger(data.orders)),
       fetchJson<{ routes: VenueRoute[] }>("/api/venues/private-routes").then((data) =>
@@ -671,6 +679,30 @@ export default function App() {
           </div>
         </section>
 
+        <section className="rail-section inspector wallet-ops">
+          <div className="section-heading">
+            <h3>Wallet Ops</h3>
+            <Wallet size={18} />
+          </div>
+          <div className="wallet-list">
+            {walletReadiness?.rails.map((rail) => (
+              <div className={`wallet-row ${rail.status}`} key={rail.id}>
+                <div className="wallet-row-head">
+                  <strong>{rail.label}</strong>
+                  <span>{formatWalletStatus(rail.status)}</span>
+                </div>
+                <small>
+                  {rail.network} · {rail.address ?? "no wallet"} · {rail.balance ?? rail.requiredAsset}
+                </small>
+                {rail.notes.slice(0, 2).map((note) => (
+                  <small key={note}>{note}</small>
+                ))}
+              </div>
+            )) ?? <p>Wallet readiness loading.</p>}
+          </div>
+          <p>{walletReadiness?.nextSafeStep ?? "Preparing non-custodial wallet checks."}</p>
+        </section>
+
         <section className="rail-section inspector">
           <div className="section-heading">
             <h3>Pilot Controls</h3>
@@ -876,6 +908,15 @@ function formatOracleMode(mode?: SecurityPosture["oracleMode"]): string {
   if (mode === "signed") return "Signed only";
   if (mode === "fixture-dev") return "Fixture override";
   return "Fail-closed";
+}
+
+function formatWalletStatus(status: WalletRailStatus): string {
+  if (status === "online") return "Online";
+  if (status === "needs_funding") return "Needs testnet gas";
+  if (status === "not_configured") return "Not configured";
+  if (status === "degraded") return "RPC issue";
+  if (status === "blocked") return "Blocked";
+  return "Not required";
 }
 
 async function fetchJson<T>(url: string): Promise<T> {

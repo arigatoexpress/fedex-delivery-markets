@@ -15,7 +15,7 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/dist-server ./dist-server
 COPY --from=build /app/contracts ./contracts
-RUN mkdir -p /var/data/delivery-markets && chown -R node:node /app /var/data
+RUN mkdir -p /var/data/delivery-markets && chown -R node:node /var/data
 USER node
 EXPOSE 4747
 CMD ["node", "dist-server/index.js"]

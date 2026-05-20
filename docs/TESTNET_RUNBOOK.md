@@ -23,6 +23,31 @@ Outputs:
 
 These artifacts are generated and ignored by git.
 
+## Wallet Readiness
+
+The app supports read-only wallet probes for the public testnet wallet. The API
+and frontend never hold keys, sign transactions, bridge assets, or move funds.
+
+```bash
+DELIVERY_MARKETS_TESTNET_WALLET_ADDRESS=0x... \
+ROBINHOOD_CHAIN_RPC_URL=https://... \
+npm run wallet:readiness
+```
+
+The same data is available at:
+
+```bash
+curl http://127.0.0.1:4747/api/wallet/readiness
+```
+
+Expected safe posture:
+
+- `liveFundsAllowed` is `false`.
+- `serverSideSigning` is `disabled`.
+- Robinhood Chain requires testnet ETH only.
+- Solana is reported as `not_required` unless a separate reviewed Solana rail is
+  added.
+
 ## Deployment
 
 The deploy script fails closed unless both deploy flags are set:
@@ -59,6 +84,7 @@ curl http://127.0.0.1:4747/api/testnet/deployment-plan
 ## Hard Stops
 
 - Do not use a mainnet private key.
+- Do not send live SOL, ETH, USDC, or customer funds to this demo.
 - Do not broadcast with customer data.
 - Do not enable live exchange routing.
 - Do not connect Robinhood/Polymarket live trading credentials.

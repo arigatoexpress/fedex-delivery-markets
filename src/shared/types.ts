@@ -208,6 +208,44 @@ export interface TestnetDeploymentPlan {
   notes: string[];
 }
 
+export type WalletRailStatus =
+  | "online"
+  | "needs_funding"
+  | "not_configured"
+  | "degraded"
+  | "blocked"
+  | "not_required";
+
+export interface WalletRailReadiness {
+  id: string;
+  label: string;
+  network: string;
+  status: WalletRailStatus;
+  addressConfigured: boolean;
+  address?: string;
+  rpcConfigured: boolean;
+  chainId?: number;
+  expectedChainId?: number;
+  requiredAsset: string;
+  balance?: string;
+  contractConfigured?: boolean;
+  contractAddress?: string;
+  contractCodePresent?: boolean;
+  liveFundsAllowed: false;
+  canDeployTestnet: boolean;
+  notes: string[];
+  actions: string[];
+}
+
+export interface WalletReadiness {
+  generatedAt: string;
+  custodyMode: "non_custodial_user_signed";
+  liveFundsAllowed: false;
+  serverSideSigning: "disabled";
+  rails: WalletRailReadiness[];
+  nextSafeStep: string;
+}
+
 export type ParticipantRole =
   | "recipient"
   | "shipper"

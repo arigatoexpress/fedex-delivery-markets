@@ -7,6 +7,7 @@ import {
 } from "../adapters/privateMarketTestnet";
 import { getPrivateVenueRoutes } from "../adapters/privateVenues";
 import { buildMarketBundle, listDemoTrackingNumbers } from "../domain/deliveryMarkets";
+import { getWalletReadiness } from "../domain/walletReadiness";
 import {
   accessClaimRequestSchema,
   buildRecipientAccessPolicy,
@@ -248,6 +249,10 @@ export function createApp(options: { store?: PilotStore; serveStatic?: boolean }
     c.json({ deploymentPlan: getTestnetDeploymentPlan() })
   );
 
+  app.get("/api/wallet/readiness", async (c) =>
+    c.json({ walletReadiness: await getWalletReadiness() })
+  );
+
   app.post("/api/risk/evaluate", async (c) => {
     const parsed = await parseLimitedJson(c, participantProfileSchema);
     if (!parsed.ok) {
@@ -307,6 +312,7 @@ export function createApp(options: { store?: PilotStore; serveStatic?: boolean }
 
   app.get("/api/readiness", async (c) => {
     const integrations = await getIntegrationReadiness();
+    const walletReadiness = await getWalletReadiness();
     const requireSignedOracle = oracleSignatureRequired();
     return c.json({
       mode: "paper-only",
@@ -334,6 +340,7 @@ export function createApp(options: { store?: PilotStore; serveStatic?: boolean }
         securityHeadersEnabled: true
       },
       integrations,
+      walletReadiness,
       blockers: [
         "Regulatory review required before any customer-facing event-contract flow.",
         "FedEx production tracking/oracle feed must be formally authorized and privacy-reviewed.",

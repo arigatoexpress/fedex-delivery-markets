@@ -20,6 +20,9 @@ page.on("response", (response) => {
 
 await page.goto(baseUrl, { waitUntil: "networkidle" });
 await page.getByText("Paper-only simulation").waitFor({ timeout: 5000 });
+await page.getByText("Wallet Ops").waitFor({ timeout: 5000 });
+await page.getByText("Robinhood Chain gas wallet").waitFor({ timeout: 5000 });
+await page.getByText("Solana reference wallet").waitFor({ timeout: 5000 });
 await page.getByRole("button", { name: /^Claim$/i }).click();
 await page.getByText("Recipient verified").waitFor({ timeout: 5000 });
 await page.getByRole("button", { name: /Submit Private Order/i }).click();

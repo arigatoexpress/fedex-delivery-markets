@@ -19,6 +19,13 @@ The application currently exposes no route for:
 - mainnet settlement;
 - real FedEx production API access.
 
+Wallet readiness is read-only. `DELIVERY_MARKETS_TESTNET_WALLET_ADDRESS` is a
+public address used for balance and chain checks only; the API does not require
+or use a private key. `npm run wallet:readiness` and `/api/wallet/readiness`
+report whether the EVM testnet wallet has gas and whether a configured receipt
+contract has bytecode. Solana is explicitly marked not required for the current
+EVM receipt path.
+
 The deploy script also requires both `DEPLOY_CONTRACTS=true` and
 `DEPLOY_PRIVATE_MARKET_CONTRACT=true` before broadcasting a testnet deployment.
 It reads `artifacts/contracts/PrivateDeliveryMarket.json`, so `npm run
@@ -76,11 +83,12 @@ grant id by itself cannot submit private orders or generate calldata previews.
 
 ## Dependency Audit Note
 
-`npm audit --audit-level=high` passes locally. The broader audit still reports
-low/moderate advisories in third-party SDK/tooling transitive dependencies:
+`npm audit --audit-level=high` passes locally. The direct `viem`/`ws` moderate
+advisory has been remediated with a pinned override. The broader audit still
+reports low advisories in third-party SDK/tooling transitive dependencies:
 
 - `@hashgraph/sdk` via ethers v5 packages;
-- `@polymarket/clob-client-v2` via ethers/ws packages;
+- `@polymarket/clob-client-v2` via ethers v5 packages;
 - `solc` via `tmp`.
 
 The available forced fixes are breaking downgrades for the current SDK set, so
