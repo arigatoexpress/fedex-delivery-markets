@@ -22,6 +22,7 @@ import type {
   DeliveryMarket,
   DeliveryMarketBundle,
   IntegrationReadiness,
+  MarketStatus,
   OrderSide,
   PrivateMarketQuote,
   PublicPaperOrder,
@@ -282,6 +283,122 @@ export default function App() {
     (selectedMarket && orderSide === "YES" ? selectedMarket.yesPrice : selectedMarket?.noPrice ?? 0);
   const notional = quote?.totalCostUsd ?? Math.round(contracts * selectedPrice * 100) / 100;
   const accessGranted = accessGrant?.status === "GRANTED";
+  const acceptedNotional = ledger
+    .filter((order) => order.status === "ACCEPTED")
+    .reduce((total, order) => total + order.notionalUsd, 0);
+  const paperBuyingPower = Math.max(0, 10_000 - acceptedNotional);
+  const openMarketCount = bundle?.markets.filter((market) => market.status === "OPEN").length ?? 0;
+  const renderRecipientAccessTicket = (idSuffix: string, extraClass = "") => (
+    <section className={`order-ticket recipient-ticket ${extraClass}`}>
+      <div className="section-heading">
+        <h3>Recipient Access</h3>
+        <LockKeyhole size={18} />
+      </div>
+      <label className="field-label" htmlFor={`wallet-address-${idSuffix}`}>
+        Recipient wallet
+      </label>
+      <input
+        id={`wallet-address-${idSuffix}`}
+        onChange={(event) => setWalletAddress(event.target.value)}
+        value={walletAddress}
+      />
+      <label className="field-label" htmlFor={`claim-code-${idSuffix}`}>
+        Package claim code
+      </label>
+      <input
+        id={`claim-code-${idSuffix}`}
+        onChange={(event) => setClaimCode(event.target.value)}
+        value={claimCode}
+      />
+      <div className="dual-action">
+        <button onClick={() => void connectWallet()} type="button">
+          MetaMask
+        </button>
+        <button onClick={() => void claimRecipientAccess()} type="button">
+          Claim
+        </button>
+      </div>
+      <div className={`grant-status ${accessGranted ? "granted" : "pending"}`}>
+        <strong>{accessGranted ? "Recipient verified" : "Recipient claim required"}</strong>
+        <span>{accessGrant?.reason ?? "Demo access is fixture-backed and expires at cutoff."}</span>
+      </div>
+    </section>
+  );
+  const renderPrivateAmmTicket = (idSuffix: string, extraClass = "") => (
+    <section className={`order-ticket ${extraClass}`}>
+      <div className="section-heading">
+        <h3>Private AMM Ticket</h3>
+        <CircleDollarSign size={18} />
+      </div>
+      {selectedMarket ? (
+        <>
+          <p>{selectedMarket.question}</p>
+          <div className="segmented">
+            <button
+              className={orderSide === "YES" ? "active" : ""}
+              onClick={() => setOrderSide("YES")}
+              type="button"
+            >
+              YES
+            </button>
+            <button
+              className={orderSide === "NO" ? "active" : ""}
+              onClick={() => setOrderSide("NO")}
+              type="button"
+            >
+              NO
+            </button>
+          </div>
+          <label className="field-label" htmlFor={`contracts-${idSuffix}`}>
+            Contracts
+          </label>
+          <input
+            id={`contracts-${idSuffix}`}
+            max={100}
+            min={1}
+            onChange={(event) => setContracts(Number(event.target.value))}
+            type="number"
+            value={contracts}
+          />
+          <div className="ticket-total">
+            <span>AMM limit</span>
+            <strong>{formatCents(selectedPrice)}</strong>
+          </div>
+          <div className="ticket-total">
+            <span>Private notional</span>
+            <strong>${notional.toFixed(2)}</strong>
+          </div>
+          {quote ? (
+            <div className="quote-metrics">
+              <span>Spot {formatCents(quote.spotPrice)}</span>
+              <span>Slippage {quote.slippageBps} bps</span>
+              <span>Theta {quote.thetaDecayBps} bps</span>
+              <span>LMSR b=${quote.liquidityParameter.toFixed(2)}</span>
+            </div>
+          ) : null}
+          <button
+            className="primary-action"
+            disabled={selectedMarket.status !== "OPEN" || !accessGranted}
+            onClick={() => void submitPrivateOrder(selectedMarket, orderSide)}
+            type="button"
+          >
+            <ArrowRight size={17} />
+            Submit Private Order
+          </button>
+          <button
+            className="secondary-action"
+            disabled={selectedMarket.status !== "OPEN" || !accessGranted}
+            onClick={() => void previewTestnetCalldata(selectedMarket, orderSide)}
+            type="button"
+          >
+            Preview Testnet Calldata
+          </button>
+        </>
+      ) : (
+        <p>Select a market.</p>
+      )}
+    </section>
+  );
 
   return (
     <div className="app-shell">
@@ -291,16 +408,16 @@ export default function App() {
             <Box size={22} />
           </div>
           <div>
-            <p className="eyebrow">Internal Concept</p>
-            <h1>Delivery Markets Lab</h1>
+            <p className="eyebrow">Paper Market</p>
+            <h1>Delivery Markets</h1>
           </div>
         </div>
 
         <div className="mode-strip">
           <ShieldCheck size={18} />
           <div>
-            <strong>Paper-only simulation</strong>
-            <span>No funds, live orders, or real tracking data</span>
+            <strong>Paper trading only</strong>
+            <span>No funds, no settlement, no live venue orders</span>
           </div>
         </div>
 
@@ -349,19 +466,38 @@ export default function App() {
       <main className="workspace">
         <header className="top-bar">
           <div>
-            <p className="eyebrow">FedEx x Robinhood Thesis Demo</p>
+            <p className="eyebrow">Recipient Delivery Market</p>
             <h2>{bundle ? `${bundle.shipment.origin} to ${bundle.shipment.destination}` : "Loading"}</h2>
           </div>
           <div className={`status-pill ${bundle?.cutoff.status.toLowerCase() ?? "open"}`}>
             {bundle?.cutoff.status === "OPEN" ? <Clock3 size={17} /> : <LockKeyhole size={17} />}
-            {loading ? "Refreshing" : bundle?.cutoff.status ?? "OPEN"}
+            {loading ? "Refreshing" : formatMarketStatus(bundle?.cutoff.status)}
           </div>
         </header>
 
+        <section className="account-summary">
+          <div>
+            <span>Paper buying power</span>
+            <strong>${paperBuyingPower.toLocaleString("en-US", { maximumFractionDigits: 2 })}</strong>
+          </div>
+          <div>
+            <span>Open markets</span>
+            <strong>{openMarketCount}</strong>
+          </div>
+          <div>
+            <span>Current ticket</span>
+            <strong>{formatCents(selectedPrice)} {orderSide}</strong>
+          </div>
+          <div>
+            <span>Trade mode</span>
+            <strong>Paper</strong>
+          </div>
+        </section>
+
         <section className="security-band">
           <div>
-            <p className="eyebrow">Security Remediation</p>
-            <h3>Critical audit controls are now fail-closed</h3>
+            <p className="eyebrow">Safety Gates</p>
+            <h3>Live funds and venue execution are blocked</h3>
           </div>
           <div className="security-grid">
             <SecurityBadge
@@ -384,11 +520,10 @@ export default function App() {
 
         <section className="private-market-band">
           <div>
-            <p className="eyebrow">Recipient-Only Market</p>
+            <p className="eyebrow">Package Access</p>
             <h3>{accessPolicy?.packageAlias ?? "Private package market"}</h3>
             <p>
-              Only the recorded recipient wallet can claim, quote, and submit private AMM paper orders
-              before cutoff.
+              Claim the recipient wallet, choose a delivery outcome, then submit a paper AMM order before cutoff.
             </p>
           </div>
           <div className="private-market-stats">
@@ -405,6 +540,11 @@ export default function App() {
             <SecurityBadge label="Venue" value="Testnet preview" state="pass" />
           </div>
         </section>
+
+        <div className="mobile-ticket-stack">
+          {renderRecipientAccessTicket("mobile", "mobile-ticket")}
+          {renderPrivateAmmTicket("mobile", "mobile-ticket")}
+        </div>
 
         {bundle ? (
           <>
@@ -430,7 +570,7 @@ export default function App() {
                 >
                   <div className="market-head">
                     <span className={`mini-status ${market.status.toLowerCase()}`}>
-                      {market.status.replace("_", " ")}
+                      {formatMarketStatus(market.status)}
                     </span>
                     <span>{market.kind.replace("_", " ")}</span>
                   </div>
@@ -505,114 +645,8 @@ export default function App() {
       </main>
 
       <aside className="right-rail">
-        <section className="order-ticket recipient-ticket">
-          <div className="section-heading">
-            <h3>Recipient Access</h3>
-            <LockKeyhole size={18} />
-          </div>
-          <label className="field-label" htmlFor="wallet-address">
-            Recipient wallet
-          </label>
-          <input
-            id="wallet-address"
-            onChange={(event) => setWalletAddress(event.target.value)}
-            value={walletAddress}
-          />
-          <label className="field-label" htmlFor="claim-code">
-            Package claim code
-          </label>
-          <input
-            id="claim-code"
-            onChange={(event) => setClaimCode(event.target.value)}
-            value={claimCode}
-          />
-          <div className="dual-action">
-            <button onClick={() => void connectWallet()} type="button">
-              MetaMask
-            </button>
-            <button onClick={() => void claimRecipientAccess()} type="button">
-              Claim
-            </button>
-          </div>
-          <div className={`grant-status ${accessGranted ? "granted" : "pending"}`}>
-            <strong>{accessGranted ? "Recipient verified" : "Recipient claim required"}</strong>
-            <span>{accessGrant?.reason ?? "Demo access is fixture-backed and expires at cutoff."}</span>
-          </div>
-        </section>
-
-        <section className="order-ticket">
-          <div className="section-heading">
-            <h3>Private AMM Ticket</h3>
-            <CircleDollarSign size={18} />
-          </div>
-          {selectedMarket ? (
-            <>
-              <p>{selectedMarket.question}</p>
-              <div className="segmented">
-                <button
-                  className={orderSide === "YES" ? "active" : ""}
-                  onClick={() => setOrderSide("YES")}
-                  type="button"
-                >
-                  YES
-                </button>
-                <button
-                  className={orderSide === "NO" ? "active" : ""}
-                  onClick={() => setOrderSide("NO")}
-                  type="button"
-                >
-                  NO
-                </button>
-              </div>
-              <label className="field-label" htmlFor="contracts">
-                Contracts
-              </label>
-              <input
-                id="contracts"
-                max={100}
-                min={1}
-                onChange={(event) => setContracts(Number(event.target.value))}
-                type="number"
-                value={contracts}
-              />
-              <div className="ticket-total">
-                <span>AMM limit</span>
-                <strong>{formatCents(selectedPrice)}</strong>
-              </div>
-              <div className="ticket-total">
-                <span>Private notional</span>
-                <strong>${notional.toFixed(2)}</strong>
-              </div>
-              {quote ? (
-                <div className="quote-metrics">
-                  <span>Spot {formatCents(quote.spotPrice)}</span>
-                  <span>Slippage {quote.slippageBps} bps</span>
-                  <span>Theta {quote.thetaDecayBps} bps</span>
-                  <span>LMSR b=${quote.liquidityParameter.toFixed(2)}</span>
-                </div>
-              ) : null}
-              <button
-                className="primary-action"
-                disabled={selectedMarket.status !== "OPEN" || !accessGranted}
-                onClick={() => void submitPrivateOrder(selectedMarket, orderSide)}
-                type="button"
-              >
-                <ArrowRight size={17} />
-                Submit Private Order
-              </button>
-              <button
-                className="secondary-action"
-                disabled={selectedMarket.status !== "OPEN" || !accessGranted}
-                onClick={() => void previewTestnetCalldata(selectedMarket, orderSide)}
-                type="button"
-              >
-                Preview Testnet Calldata
-              </button>
-            </>
-          ) : (
-            <p>Select a market.</p>
-          )}
-        </section>
+        {renderRecipientAccessTicket("desktop", "desktop-ticket")}
+        {renderPrivateAmmTicket("desktop", "desktop-ticket")}
 
         <section className="rail-section inspector">
           <div className="section-heading">
@@ -917,6 +951,12 @@ function formatWalletStatus(status: WalletRailStatus): string {
   if (status === "degraded") return "RPC issue";
   if (status === "blocked") return "Blocked";
   return "Not required";
+}
+
+function formatMarketStatus(status?: MarketStatus): string {
+  if (status === "CUTOFF_LOCKED") return "Cutoff locked";
+  if (status === "RESOLVED") return "Resolved";
+  return "Open";
 }
 
 async function fetchJson<T>(url: string): Promise<T> {

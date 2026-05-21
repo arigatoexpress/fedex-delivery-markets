@@ -19,13 +19,15 @@ page.on("response", (response) => {
 });
 
 await page.goto(baseUrl, { waitUntil: "networkidle" });
-await page.getByText("Paper-only simulation").waitFor({ timeout: 5000 });
+await page.getByText("Paper trading only").waitFor({ timeout: 5000 });
+await page.getByText("Live funds and venue execution are blocked").waitFor({ timeout: 5000 });
 await page.getByText("Wallet Ops").waitFor({ timeout: 5000 });
 await page.getByText("Robinhood Chain gas wallet").waitFor({ timeout: 5000 });
 await page.getByText("Solana reference wallet").waitFor({ timeout: 5000 });
-await page.getByRole("button", { name: /^Claim$/i }).click();
-await page.getByText("Recipient verified").waitFor({ timeout: 5000 });
-await page.getByRole("button", { name: /Submit Private Order/i }).click();
+const rightRail = page.locator(".right-rail");
+await rightRail.getByRole("button", { name: /^Claim$/i }).click();
+await rightRail.getByText("Recipient verified").waitFor({ timeout: 5000 });
+await rightRail.getByRole("button", { name: /Submit Private Order/i }).click();
 await page.getByRole("heading", { name: /Private recipient AMM paper order accepted/i }).waitFor({
   timeout: 5000
 });

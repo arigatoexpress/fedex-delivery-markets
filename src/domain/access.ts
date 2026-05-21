@@ -33,7 +33,7 @@ export function buildRecipientAccessPolicy(
 
   return {
     trackingNumberHash: sha256(shipment.trackingNumber),
-    packageAlias: fixture?.packageAlias ?? `${shipment.origin} -> ${shipment.destination}`,
+    packageAlias: fixture?.packageAlias ?? `${shipment.origin} to ${shipment.destination}`,
     recipientScope: "recipient_only",
     eligibleRelation: "recipient",
     allowedWallets: fixture?.allowedWallets ?? [],
