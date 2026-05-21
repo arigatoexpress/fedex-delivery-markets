@@ -154,10 +154,10 @@ export default function App() {
       }
       setNotice(
         data.cutoff.status === "OPEN"
-          ? "Markets open before hub cutoff"
+          ? "Betting is open"
           : data.cutoff.status === "RESOLVED"
-            ? "Resolved by delivery event"
-            : "Locked at hub cutoff"
+            ? "Package delivered"
+            : "Betting is closed"
       );
     } catch (error) {
       setBundle(null);
@@ -201,6 +201,27 @@ export default function App() {
     setNotice(payload.grant.reason);
   }
 
+  async function ensureRecipientAccess() {
+    if (accessGrant?.status === "GRANTED" && accessGrantSecret) {
+      return { grant: accessGrant, accessGrantSecret };
+    }
+
+    const payload = await postJson<{
+      grant: RecipientAccessGrant;
+      accessGrantSecret?: string;
+    }>("/api/access/claim", {
+      trackingNumber,
+      walletAddress,
+      claimCode
+    });
+    setAccessGrant(payload.grant);
+    setAccessGrantSecret(payload.accessGrantSecret ?? null);
+    if (payload.grant.status !== "GRANTED" || !payload.accessGrantSecret) {
+      throw new Error(payload.grant.reason);
+    }
+    return { grant: payload.grant, accessGrantSecret: payload.accessGrantSecret };
+  }
+
   async function connectWallet() {
     if (!window.ethereum) {
       setNotice("MetaMask is not available in this browser session. Use the demo recipient wallet.");
@@ -234,10 +255,7 @@ export default function App() {
   }
 
   async function submitPrivateOrder(market: DeliveryMarket, side: OrderSide) {
-    if (!accessGrant || accessGrant.status !== "GRANTED" || !accessGrantSecret) {
-      setNotice("Claim recipient access before submitting a private AMM order.");
-      return;
-    }
+    const grantPayload = await ensureRecipientAccess();
     const payload = await postJson<{
       order: PublicPaperOrder;
       quote: PrivateMarketQuote;
@@ -248,13 +266,13 @@ export default function App() {
       marketId: market.id,
       side,
       contracts,
-      accessGrantId: accessGrant.id,
-      accessGrantSecret
+      accessGrantId: grantPayload.grant.id,
+      accessGrantSecret: grantPayload.accessGrantSecret
     });
     setQuote(payload.quote);
     setLedger(payload.ledger);
     setTestnetPreviews(payload.testnetPreviews);
-    setNotice(payload.order.reason);
+    setNotice("Paper bet placed. No money moved.");
   }
 
   async function previewTestnetCalldata(market: DeliveryMarket, side: OrderSide) {
@@ -291,11 +309,11 @@ export default function App() {
   const renderRecipientAccessTicket = (idSuffix: string, extraClass = "") => (
     <section className={`order-ticket recipient-ticket ${extraClass}`}>
       <div className="section-heading">
-        <h3>Recipient Access</h3>
+        <h3>Package Check</h3>
         <LockKeyhole size={18} />
       </div>
       <label className="field-label" htmlFor={`wallet-address-${idSuffix}`}>
-        Recipient wallet
+        Demo recipient wallet
       </label>
       <input
         id={`wallet-address-${idSuffix}`}
@@ -303,7 +321,7 @@ export default function App() {
         value={walletAddress}
       />
       <label className="field-label" htmlFor={`claim-code-${idSuffix}`}>
-        Package claim code
+        Demo claim code
       </label>
       <input
         id={`claim-code-${idSuffix}`}
@@ -315,19 +333,19 @@ export default function App() {
           MetaMask
         </button>
         <button onClick={() => void claimRecipientAccess()} type="button">
-          Claim
+          Verify
         </button>
       </div>
       <div className={`grant-status ${accessGranted ? "granted" : "pending"}`}>
-        <strong>{accessGranted ? "Recipient verified" : "Recipient claim required"}</strong>
-        <span>{accessGrant?.reason ?? "Demo access is fixture-backed and expires at cutoff."}</span>
+        <strong>{accessGranted ? "Ready to bet" : "Auto-filled for demo"}</strong>
+        <span>{accessGrant?.reason ?? "Only the package recipient can place the real version of this bet."}</span>
       </div>
     </section>
   );
   const renderPrivateAmmTicket = (idSuffix: string, extraClass = "") => (
     <section className={`order-ticket ${extraClass}`}>
       <div className="section-heading">
-        <h3>Private AMM Ticket</h3>
+        <h3>Place a Paper Bet</h3>
         <CircleDollarSign size={18} />
       </div>
       {selectedMarket ? (
@@ -350,7 +368,7 @@ export default function App() {
             </button>
           </div>
           <label className="field-label" htmlFor={`contracts-${idSuffix}`}>
-            Contracts
+            Bet size
           </label>
           <input
             id={`contracts-${idSuffix}`}
@@ -361,37 +379,35 @@ export default function App() {
             value={contracts}
           />
           <div className="ticket-total">
-            <span>AMM limit</span>
+            <span>Price</span>
             <strong>{formatCents(selectedPrice)}</strong>
           </div>
           <div className="ticket-total">
-            <span>Private notional</span>
+            <span>Paper cost</span>
             <strong>${notional.toFixed(2)}</strong>
           </div>
           {quote ? (
             <div className="quote-metrics">
-              <span>Spot {formatCents(quote.spotPrice)}</span>
-              <span>Slippage {quote.slippageBps} bps</span>
-              <span>Theta {quote.thetaDecayBps} bps</span>
-              <span>LMSR b=${quote.liquidityParameter.toFixed(2)}</span>
+              <span>Market price {formatCents(quote.spotPrice)}</span>
+              <span>Est. cost ${quote.totalCostUsd.toFixed(2)}</span>
             </div>
           ) : null}
           <button
             className="primary-action"
-            disabled={selectedMarket.status !== "OPEN" || !accessGranted}
+            disabled={selectedMarket.status !== "OPEN"}
             onClick={() => void submitPrivateOrder(selectedMarket, orderSide)}
             type="button"
           >
             <ArrowRight size={17} />
-            Submit Private Order
+            Place Paper Bet
           </button>
           <button
             className="secondary-action"
-            disabled={selectedMarket.status !== "OPEN" || !accessGranted}
-            onClick={() => void previewTestnetCalldata(selectedMarket, orderSide)}
+            disabled={accessGranted}
+            onClick={() => void claimRecipientAccess()}
             type="button"
           >
-            Preview Testnet Calldata
+            {accessGranted ? "Package Verified" : "Verify Package"}
           </button>
         </>
       ) : (
@@ -408,21 +424,21 @@ export default function App() {
             <Box size={22} />
           </div>
           <div>
-            <p className="eyebrow">Paper Market</p>
-            <h1>Delivery Markets</h1>
+            <p className="eyebrow">Paper Money Demo</p>
+            <h1>Delivery Bet</h1>
           </div>
         </div>
 
         <div className="mode-strip">
           <ShieldCheck size={18} />
           <div>
-            <strong>Paper trading only</strong>
-            <span>No funds, no settlement, no live venue orders</span>
+            <strong>Practice bets only</strong>
+            <span>No real money or real market orders</span>
           </div>
         </div>
 
         <section className="rail-section">
-          <p className="section-label">Demo Tracking</p>
+          <p className="section-label">Choose Package</p>
           <div className="tracking-search">
             <ScanLine size={18} />
             <input
@@ -445,29 +461,13 @@ export default function App() {
             ))}
           </div>
         </section>
-
-        <section className="rail-section">
-          <p className="section-label">Execution Rails</p>
-          <RailItem
-            icon={<Network size={17} />}
-            title="Robinhood Chain"
-            value="Testnet resolver target"
-          />
-          <RailItem
-            icon={<RadioTower size={17} />}
-            title="Hedera HCS"
-            value="Oracle timestamp anchor"
-          />
-          <RailItem icon={<Activity size={17} />} title="Polymarket" value="Read-only SDK reference" />
-          <RailItem icon={<Sparkles size={17} />} title="CoW SDK" value="Intent-signing pattern" />
-        </section>
       </aside>
 
       <main className="workspace">
         <header className="top-bar">
           <div>
-            <p className="eyebrow">Recipient Delivery Market</p>
-            <h2>{bundle ? `${bundle.shipment.origin} to ${bundle.shipment.destination}` : "Loading"}</h2>
+            <p className="eyebrow">Bet on this delivery</p>
+            <h2>{bundle ? `${bundle.shipment.origin} to ${bundle.shipment.destination}` : "Loading package"}</h2>
           </div>
           <div className={`status-pill ${bundle?.cutoff.status.toLowerCase() ?? "open"}`}>
             {bundle?.cutoff.status === "OPEN" ? <Clock3 size={17} /> : <LockKeyhole size={17} />}
@@ -477,73 +477,57 @@ export default function App() {
 
         <section className="account-summary">
           <div>
-            <span>Paper buying power</span>
+            <span>Paper balance</span>
             <strong>${paperBuyingPower.toLocaleString("en-US", { maximumFractionDigits: 2 })}</strong>
           </div>
           <div>
-            <span>Open markets</span>
+            <span>Available bets</span>
             <strong>{openMarketCount}</strong>
           </div>
           <div>
-            <span>Current ticket</span>
+            <span>Your pick</span>
             <strong>{formatCents(selectedPrice)} {orderSide}</strong>
           </div>
           <div>
-            <span>Trade mode</span>
+            <span>Mode</span>
             <strong>Paper</strong>
           </div>
         </section>
 
-        <section className="security-band">
+        <section className="demo-note">
           <div>
-            <p className="eyebrow">Safety Gates</p>
-            <h3>Live funds and venue execution are blocked</h3>
-          </div>
-          <div className="security-grid">
-            <SecurityBadge
-              label="Admin"
-              value={formatAdminMode(readiness?.securityPosture.adminAuthMode)}
-              state={readiness?.securityPosture.adminAuthMode === "dev-open" ? "warn" : "pass"}
-            />
-            <SecurityBadge
-              label="Oracle"
-              value={formatOracleMode(readiness?.securityPosture.oracleMode)}
-              state={readiness?.securityPosture.oracleMode === "fixture-dev" ? "warn" : "pass"}
-            />
-            <SecurityBadge
-              label="Ledger"
-              value={readiness?.securityPosture.publicLedgerRedacted ? "Redacted" : "Raw"}
-              state={readiness?.securityPosture.publicLedgerRedacted ? "pass" : "warn"}
-            />
+            <p className="eyebrow">Demo note</p>
+            <h3>This is a paper-money demo for the meeting.</h3>
+            <p>No real funds, no real FedEx data, and no live market order will be sent.</p>
           </div>
         </section>
 
         <section className="private-market-band">
           <div>
-            <p className="eyebrow">Package Access</p>
+            <p className="eyebrow">How it works</p>
             <h3>{accessPolicy?.packageAlias ?? "Private package market"}</h3>
             <p>
-              Claim the recipient wallet, choose a delivery outcome, then submit a paper AMM order before cutoff.
+              Pick an outcome, choose YES or NO, and place a paper bet before the hub cutoff.
             </p>
           </div>
           <div className="private-market-stats">
             <SecurityBadge
-              label="Access"
-              value={accessGranted ? "Granted" : accessPolicy?.status ?? "Claimable"}
-              state={accessGranted ? "pass" : "warn"}
-            />
-            <SecurityBadge
-              label="AMM"
-              value={quote ? `${formatCents(quote.limitPrice)} ${orderSide}` : "Quoting"}
+              label="Step 1"
+              value="Pick"
               state="pass"
             />
-            <SecurityBadge label="Venue" value="Testnet preview" state="pass" />
+            <SecurityBadge
+              label="Step 2"
+              value="Bet"
+              state="pass"
+            />
+            <SecurityBadge label="Step 3" value="Watch" state="pass" />
           </div>
         </section>
 
         <div className="mobile-ticket-stack">
-          {renderRecipientAccessTicket("mobile", "mobile-ticket")}
           {renderPrivateAmmTicket("mobile", "mobile-ticket")}
+          {renderRecipientAccessTicket("mobile", "mobile-ticket")}
         </div>
 
         {bundle ? (
@@ -556,7 +540,7 @@ export default function App() {
                   <span>Promised {formatDate(bundle.shipment.promisedDate)}</span>
                 </div>
                 <h3>{notice}</h3>
-                <p>{bundle.cutoff.reason}</p>
+                <p>{formatCutoffReason(bundle)}</p>
               </div>
               <RouteMap bundle={bundle} />
             </section>
@@ -584,27 +568,29 @@ export default function App() {
                       disabled={market.status !== "OPEN"}
                       onClick={(event) => {
                         event.stopPropagation();
+                        setSelectedMarketId(market.id);
                         setOrderSide("YES");
                         void refreshQuote(market, "YES", contracts, bundle.shipment.trackingNumber);
                       }}
-                      title="Quote private YES order"
+                      title="Pick YES"
                       type="button"
                     >
                       <CheckCircle2 size={16} />
-                      Quote YES
+                      Pick YES
                     </button>
                     <button
                       disabled={market.status !== "OPEN"}
                       onClick={(event) => {
                         event.stopPropagation();
+                        setSelectedMarketId(market.id);
                         setOrderSide("NO");
                         void refreshQuote(market, "NO", contracts, bundle.shipment.trackingNumber);
                       }}
-                      title="Quote private NO order"
+                      title="Pick NO"
                       type="button"
                     >
                       <Ban size={16} />
-                      Quote NO
+                      Pick NO
                     </button>
                   </div>
                 </article>
@@ -613,12 +599,11 @@ export default function App() {
 
             <section className="timeline-section">
               <div className="section-heading">
-                <h3>Oracle Event Tape</h3>
-                <span>{bundle.oracleAnchors.length} anchored events</span>
+                <h3>Package Updates</h3>
+                <span>{bundle.shipment.events.length} updates</span>
               </div>
               <div className="timeline">
-                {bundle.shipment.events.map((event, index) => {
-                  const anchor = bundle.oracleAnchors[index];
+                {bundle.shipment.events.map((event) => {
                   return (
                     <div className="timeline-row" key={`${event.timestamp}-${event.code}`}>
                       <div className="timeline-dot" />
@@ -628,7 +613,6 @@ export default function App() {
                           {event.facility} · {event.city}, {event.state} · {formatDateTime(event.timestamp)}
                         </span>
                       </div>
-                      <code>{anchor.payloadHash.slice(0, 22)}...</code>
                     </div>
                   );
                 })}
@@ -645,145 +629,23 @@ export default function App() {
       </main>
 
       <aside className="right-rail">
-        {renderRecipientAccessTicket("desktop", "desktop-ticket")}
         {renderPrivateAmmTicket("desktop", "desktop-ticket")}
+        {renderRecipientAccessTicket("desktop", "desktop-ticket")}
 
-        <section className="rail-section inspector">
+        <section className="rail-section inspector meeting-card">
           <div className="section-heading">
-            <h3>Readiness</h3>
+            <h3>What You Can Say</h3>
             <ShieldCheck size={18} />
           </div>
-          {readiness?.integrations.map((item) => (
-            <div className="integration" key={item.id}>
-              <div>
-                <strong>{item.label}</strong>
-                <span>{item.mode}</span>
-              </div>
-              <a href={item.sourceUrl} rel="noreferrer" target="_blank" title={`${item.label} docs`}>
-                <ExternalLink size={15} />
-              </a>
-            </div>
-          ))}
+          <p>
+            Customers can make a paper prediction on when their own package arrives. The real version
+            would keep betting private to the recipient and close before operational milestones.
+          </p>
         </section>
 
         <section className="rail-section inspector">
           <div className="section-heading">
-            <h3>Venue Path</h3>
-            <Network size={18} />
-          </div>
-          <div className="venue-list">
-            {venueRoutes.slice(0, 4).map((route) => (
-              <div className="venue-row" key={route.id}>
-                <strong>{route.label}</strong>
-                <span>{route.mode}</span>
-                <small>{route.summary}</small>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="rail-section inspector">
-          <div className="section-heading">
-            <h3>Testnet Preview</h3>
-            <RadioTower size={18} />
-          </div>
-          <div className="calldata-list">
-            {deploymentPlan ? (
-              <div className="calldata-row deploy-plan-row">
-                <strong>{deploymentPlan.targetContract}</strong>
-                <span>{deploymentPlan.chainName}</span>
-                <small>
-                  API broadcast {deploymentPlan.apiBroadcastEnabled ? "enabled" : "blocked"} · contract{" "}
-                  {deploymentPlan.contractAddressConfigured ? "configured" : "not configured"}
-                </small>
-              </div>
-            ) : null}
-            {testnetPreviews.length ? (
-              testnetPreviews.map((preview) => (
-                <div className="calldata-row" key={preview.id}>
-                  <strong>{preview.functionName}</strong>
-                  <span>{preview.chainName}</span>
-                  <code>{preview.calldata.slice(0, 58)}...</code>
-                  <small>{preview.broadcastEnabled ? "Broadcast enabled" : "No signing or broadcast"}</small>
-                </div>
-              ))
-            ) : (
-              <p>Claim access, then preview Robinhood Chain / Arbitrum-compatible calldata.</p>
-            )}
-          </div>
-        </section>
-
-        <section className="rail-section inspector wallet-ops">
-          <div className="section-heading">
-            <h3>Wallet Ops</h3>
-            <Wallet size={18} />
-          </div>
-          <div className="wallet-list">
-            {walletReadiness?.rails.map((rail) => (
-              <div className={`wallet-row ${rail.status}`} key={rail.id}>
-                <div className="wallet-row-head">
-                  <strong>{rail.label}</strong>
-                  <span>{formatWalletStatus(rail.status)}</span>
-                </div>
-                <small>
-                  {rail.network} · {rail.address ?? "no wallet"} · {rail.balance ?? rail.requiredAsset}
-                </small>
-                {rail.notes.slice(0, 2).map((note) => (
-                  <small key={note}>{note}</small>
-                ))}
-              </div>
-            )) ?? <p>Wallet readiness loading.</p>}
-          </div>
-          <p>{walletReadiness?.nextSafeStep ?? "Preparing non-custodial wallet checks."}</p>
-        </section>
-
-        <section className="rail-section inspector">
-          <div className="section-heading">
-            <h3>Pilot Controls</h3>
-            <LockKeyhole size={18} />
-          </div>
-          <div className="control-list">
-            <ControlRow
-              label="Admin routes"
-              value={formatAdminMode(readiness?.securityPosture.adminAuthMode)}
-              status={readiness?.securityPosture.adminAuthMode === "dev-open" ? "warn" : "pass"}
-            />
-            <ControlRow
-              label="Oracle intake"
-              value={formatOracleMode(readiness?.securityPosture.oracleMode)}
-              status={readiness?.securityPosture.oracleMode === "fixture-dev" ? "warn" : "pass"}
-            />
-            <ControlRow
-              label="Public ledger"
-              value={readiness?.securityPosture.publicLedgerRedacted ? "Redacted" : "Raw"}
-              status={readiness?.securityPosture.publicLedgerRedacted ? "pass" : "warn"}
-            />
-            <ControlRow
-              label="Rejected orders"
-              value={readiness?.securityPosture.rejectedOrdersPersisted ? "Persisted" : "Not persisted"}
-              status={readiness?.securityPosture.rejectedOrdersPersisted ? "warn" : "pass"}
-            />
-            <ControlRow
-              label="Rate limits"
-              value={readiness?.securityPosture.rateLimitsEnabled ? "Enabled" : "Missing"}
-              status={readiness?.securityPosture.rateLimitsEnabled ? "pass" : "warn"}
-            />
-            <ControlRow
-              label="Live order signing"
-              value={readiness?.liveOrderSigningAllowed ? "Enabled" : "Blocked"}
-              status={readiness?.liveOrderSigningAllowed ? "warn" : "pass"}
-            />
-            <ControlRow
-              label="FedEx production API"
-              value={readiness?.liveFedExApiAllowed ? "Enabled" : "Blocked"}
-              status={readiness?.liveFedExApiAllowed ? "warn" : "pass"}
-            />
-          </div>
-        </section>
-
-        <section className="rail-section inspector">
-          <div className="section-heading">
-            <h3>Ledger</h3>
+            <h3>Recent Paper Bets</h3>
             <Activity size={18} />
           </div>
           <div className="ledger-list">
@@ -796,21 +658,13 @@ export default function App() {
                   <strong>
                     {order.side} · {order.contracts} @ {formatCents(order.limitPrice)}
                   </strong>
-                  <small>{order.reason}</small>
+                  <small>Paper bet recorded. No money moved.</small>
                 </div>
               ))
             ) : (
-              <p>No paper orders yet.</p>
+              <p>No paper bets yet.</p>
             )}
           </div>
-        </section>
-
-        <section className="rail-section inspector">
-          <div className="section-heading">
-            <h3>Research</h3>
-            <Truck size={18} />
-          </div>
-          <p>{research?.thesis ?? "Loading research memo."}</p>
         </section>
       </aside>
     </div>
@@ -954,9 +808,19 @@ function formatWalletStatus(status: WalletRailStatus): string {
 }
 
 function formatMarketStatus(status?: MarketStatus): string {
-  if (status === "CUTOFF_LOCKED") return "Cutoff locked";
-  if (status === "RESOLVED") return "Resolved";
+  if (status === "CUTOFF_LOCKED") return "Closed";
+  if (status === "RESOLVED") return "Delivered";
   return "Open";
+}
+
+function formatCutoffReason(bundle: DeliveryMarketBundle): string {
+  if (bundle.cutoff.status === "OPEN") {
+    return "Betting is open until this package reaches the cutoff point.";
+  }
+  if (bundle.cutoff.status === "RESOLVED") {
+    return "The delivery is complete, so the paper market is resolved.";
+  }
+  return "This package has reached the cutoff point, so betting is closed.";
 }
 
 async function fetchJson<T>(url: string): Promise<T> {
