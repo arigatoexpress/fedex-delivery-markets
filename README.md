@@ -57,6 +57,8 @@ Deployment scaffolds:
 - `Dockerfile`
 - `infra/docker-compose.yml`
 - `infra/render.yaml`
+- `.gcloudignore`
+- `docs/PRODUCTION_DEMO_RUNBOOK.md`
 
 Testnet deploy path:
 
