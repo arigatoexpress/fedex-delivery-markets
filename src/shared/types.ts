@@ -96,6 +96,156 @@ export interface PaperOrder {
   createdAt: string;
 }
 
+export type AccessGrantCapability =
+  | "VIEW_PRIVATE_MARKET"
+  | "QUOTE_PRIVATE_AMM"
+  | "SUBMIT_PRIVATE_ORDER"
+  | "PREVIEW_TESTNET_CALLDATA";
+
+export interface RecipientAccessPolicy {
+  trackingNumberHash: string;
+  packageAlias: string;
+  recipientScope: "recipient_only";
+  eligibleRelation: "recipient";
+  allowedWallets: string[];
+  claimCodeRequired: boolean;
+  demoClaimCode?: string;
+  cutoffAt: string;
+  status: "CLAIMABLE" | "LOCKED" | "RESOLVED";
+}
+
+export interface RecipientAccessGrant {
+  id: string;
+  trackingNumberHash: string;
+  walletAddress: string;
+  relationToShipment: "recipient";
+  status: "GRANTED" | "DENIED";
+  reason: string;
+  capabilities: AccessGrantCapability[];
+  grantSecretHash?: string;
+  expiresAt: string;
+  createdAt: string;
+}
+
+export interface PublicPaperOrder {
+  id: string;
+  marketId: string;
+  side: OrderSide;
+  contracts: number;
+  limitPrice: number;
+  notionalUsd: number;
+  status: "ACCEPTED" | "BLOCKED";
+  reason: string;
+  environment: "paper";
+  createdAt: string;
+}
+
+export interface PrivateMarketQuote {
+  marketId: string;
+  trackingNumberHash: string;
+  side: OrderSide;
+  contracts: number;
+  spotPrice: number;
+  averagePrice: number;
+  limitPrice: number;
+  grossCostUsd: number;
+  spreadUsd: number;
+  totalCostUsd: number;
+  beforeProbability: number;
+  afterProbability: number;
+  slippageBps: number;
+  thetaDecayBps: number;
+  inventorySkewBps: number;
+  liquidityParameter: number;
+  maxContracts: number;
+  counterparty: "private-amm-bot";
+  cutoffAt: string;
+  generatedAt: string;
+  explanation: string;
+}
+
+export interface VenueRoute {
+  id: string;
+  label: string;
+  mode: "testnet-calldata" | "partner-required" | "read-only" | "blocked";
+  available: boolean;
+  network?: string;
+  summary: string;
+  constraints: string[];
+  sourceUrl: string;
+}
+
+export interface TestnetTransactionPreview {
+  id: string;
+  chainId: number;
+  chainName: string;
+  to: string;
+  functionName: string;
+  calldata: string;
+  walletRequest: {
+    to: string;
+    data: string;
+    value: "0x0";
+    chainId: string;
+  };
+  requiresWalletSignature: boolean;
+  broadcastEnabled: boolean;
+  explorerUrl: string;
+  warnings: string[];
+}
+
+export interface TestnetDeploymentPlan {
+  chainId: number;
+  chainName: string;
+  targetContract: "PrivateDeliveryMarket";
+  contractAddress?: string;
+  contractAddressConfigured: boolean;
+  artifactCommand: string;
+  deployCommand: string;
+  requiredEnv: string[];
+  apiBroadcastEnabled: false;
+  walletBroadcastEnabled: false;
+  notes: string[];
+}
+
+export type WalletRailStatus =
+  | "online"
+  | "needs_funding"
+  | "not_configured"
+  | "degraded"
+  | "blocked"
+  | "not_required";
+
+export interface WalletRailReadiness {
+  id: string;
+  label: string;
+  network: string;
+  status: WalletRailStatus;
+  addressConfigured: boolean;
+  address?: string;
+  rpcConfigured: boolean;
+  chainId?: number;
+  expectedChainId?: number;
+  requiredAsset: string;
+  balance?: string;
+  contractConfigured?: boolean;
+  contractAddress?: string;
+  contractCodePresent?: boolean;
+  liveFundsAllowed: false;
+  canDeployTestnet: boolean;
+  notes: string[];
+  actions: string[];
+}
+
+export interface WalletReadiness {
+  generatedAt: string;
+  custodyMode: "non_custodial_user_signed";
+  liveFundsAllowed: false;
+  serverSideSigning: "disabled";
+  rails: WalletRailReadiness[];
+  nextSafeStep: string;
+}
+
 export type ParticipantRole =
   | "recipient"
   | "shipper"
@@ -155,9 +305,23 @@ export interface OracleEventRecord {
 export interface StoreSnapshot {
   orderCount: number;
   oracleEventCount: number;
+  accessGrantCount: number;
   lastOrderId?: string;
   lastOracleEventHash?: string;
   dataDir: string;
+  maxRecords: number;
+}
+
+export interface SecurityPosture {
+  adminAuthMode: "token" | "locked" | "dev-open";
+  oracleMode: "signed" | "locked" | "fixture-dev";
+  adminRoutesFailClosed: boolean;
+  oracleEventsRequireSignature: boolean;
+  publicLedgerRedacted: boolean;
+  rejectedOrdersPersisted: boolean;
+  rateLimitsEnabled: boolean;
+  bodyLimitBytes: number;
+  securityHeadersEnabled: boolean;
 }
 
 export interface IntegrationReadiness {

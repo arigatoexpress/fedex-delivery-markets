@@ -16,6 +16,84 @@ Returns the three synthetic tracking numbers bundled with the pilot.
 
 Returns the synthetic shipment, generated markets, cutoff state, settlement state, and HCS-style anchors.
 
+### `GET /api/access/policy/:trackingNumber`
+
+Returns the recipient-only access policy for the package, including the hashed tracking number, allowed demo wallet, claim requirement, cutoff time, and current claimability.
+
+### `POST /api/access/claim`
+
+Creates a recipient access grant when the wallet and package claim code match the package record.
+
+```json
+{
+  "trackingNumber": "771234567890",
+  "walletAddress": "0x1111111111111111111111111111111111111111",
+  "claimCode": "AUSTIN-DENVER-RECIPIENT"
+}
+```
+
+The response returns a redacted grant plus `accessGrantSecret`. The server stores only the secret hash and requires both `accessGrantId` and `accessGrantSecret` for private orders and calldata preview. Granted capabilities include private market viewing, AMM quoting, private paper order submission, and testnet calldata preview. Production should replace the fixture claim code with FedEx Identity / recipient-account authorization.
+
+### `POST /api/amm/quote`
+
+Returns a private binary AMM quote using the LMSR pricing engine, theta-decay spread, inventory spread, and cutoff-aware liquidity parameter.
+
+```json
+{
+  "trackingNumber": "771234567890",
+  "marketId": "abc123-day-2026-05-18",
+  "side": "YES",
+  "contracts": 5
+}
+```
+
+### `POST /api/private/orders`
+
+Creates a recipient-gated private AMM paper order. Requires a granted access token from `/api/access/claim`.
+
+```json
+{
+  "trackingNumber": "771234567890",
+  "marketId": "abc123-day-2026-05-18",
+  "side": "YES",
+  "contracts": 5,
+  "accessGrantId": "grant-...",
+  "accessGrantSecret": "ag_..."
+}
+```
+
+The response returns a redacted order, the AMM quote, the redacted public ledger, and Robinhood Chain / Arbitrum-compatible calldata previews. The API does not sign or broadcast.
+
+### `POST /api/testnet/calldata`
+
+Returns `createMarket` and `recordTrade` calldata previews for the private market receipt contract. Requires recipient access. Set `PRIVATE_MARKET_CONTRACT_ADDRESS` to preview a concrete deployed target; otherwise the response uses the zero-address placeholder and warning.
+
+Each preview includes a MetaMask-compatible `walletRequest` envelope:
+
+```json
+{
+  "to": "0x...",
+  "data": "0x...",
+  "value": "0x0",
+  "chainId": "0xb626"
+}
+```
+
+The app still does not call `eth_sendTransaction`; this is a handoff artifact only.
+
+### `GET /api/testnet/deployment-plan`
+
+Returns the contract build/deploy commands, required testnet environment variables, target chain, and explicit `apiBroadcastEnabled: false` posture.
+
+### `GET /api/venues/private-routes`
+
+Returns what is currently possible:
+
+- Robinhood Chain / Arbitrum-compatible private receipt contract: testnet calldata available.
+- Hedera HCS oracle anchor: testnet/sandbox design available.
+- Robinhood event contracts: partner approval required; no public private-market SDK assumed.
+- Polymarket CLOB: read-only/reference route; public docs do not expose private recipient-only market creation.
+
 ### `POST /api/orders`
 
 Creates a paper order only.
@@ -60,11 +138,15 @@ Real-money pilot eligibility currently always returns `false`.
 
 ### `GET /api/oracle/events`
 
-Returns recent oracle event records.
+Returns recent oracle event records. Requires admin authorization.
 
 ### `POST /api/oracle/events`
 
-Records an oracle event to the pilot ledger. If `ORACLE_SIGNER_ADDRESS` is configured, the payload must include an EIP-712 signature from that address.
+Records an oracle event to the pilot ledger. Requires admin authorization. By
+default, the payload must include an EIP-712 signature from
+`ORACLE_SIGNER_ADDRESS`; unsigned fixture events require the explicit
+non-production `ALLOW_FIXTURE_ORACLE_EVENTS=true` escape hatch. The route never
+submits a live Hedera message or EVM resolution.
 
 ```json
 {
@@ -86,7 +168,10 @@ The route returns `liveResolutionSubmitted: false`.
 
 ## Admin Routes
 
-Admin routes are open in local development unless `DELIVERY_MARKETS_ADMIN_TOKEN` is configured. When configured, send `Authorization: Bearer <token>`.
+Admin routes fail closed by default. Set `DELIVERY_MARKETS_ADMIN_TOKEN` and send
+`Authorization: Bearer <token>`. For local-only demos, `ALLOW_DEV_OPEN_ADMIN=true`
+opens admin routes when `NODE_ENV !== "production"` and adds the
+`x-delivery-markets-auth: dev-open-admin` response header.
 
 ### `GET /api/admin/audit`
 

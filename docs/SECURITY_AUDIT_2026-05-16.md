@@ -5,11 +5,31 @@ Repo: `/Users/aribs/Code/fedex-delivery-markets`
 Commit audited: `39071a1` plus current uncommitted security-audit report  
 Scope: React/Vite frontend, Hono API, oracle/risk/order domains, JSONL persistence, Solidity resolver, Docker/Render/CI scaffolding.
 
+Remediation update: 2026-05-20, current branch `feat/private-recipient-amm`.
+The original audit findings below remain as historical evidence for commit
+`39071a1`; the current implementation has remediated the two critical fail-open
+findings, recipient/private-order authorization gaps, and the production Docker
+runtime concern by bundling the server and running the container as the non-root
+`node` user. Current `/api/readiness` is the source of truth for live operator
+posture.
+
 ## Executive Summary
 
-The application is acceptable as a local paper-only prototype, but it is not ready for an internet-exposed FedEx/Robinhood pilot. The highest-risk issue is that privileged admin/oracle routes fail open when environment variables are missing, including in `NODE_ENV=production`. A production-style smoke run confirmed unauthenticated access to `/api/admin/audit` and unauthenticated acceptance of an unsigned fixture oracle event.
+The application is acceptable as a local paper-only prototype and is now safer
+for partner review, but it is still not ready for an internet-exposed
+FedEx/Robinhood pilot. The original highest-risk issue was that privileged
+admin/oracle routes failed open when environment variables were missing,
+including in `NODE_ENV=production`. Current live probes show those routes now
+fail closed by default: unauthenticated `/api/admin/audit` returns `401`, admin
+mode reports `locked`, and oracle mode reports `locked` unless an explicit
+development fixture flag or signer configuration is present.
 
-The second major risk cluster is pilot data integrity: unauthenticated users can write to the paper-order ledger, blocked/invalid orders are persisted, the public ledger reveals account IDs and hashed tracking identifiers, and the JSONL store has no rate limiting, body-size guard, or bounded reads. The smart contract is explicitly demo-only and correctly avoids custody, but it lacks the governance, validation, and emergency controls needed before any testnet pilot is treated as authoritative.
+The remaining risk cluster is pilot data governance: public demo users can
+still create paper orders and read redacted recent paper-order records, and the
+smart contract remains explicitly demo-only. That is acceptable for an internal
+fixture demo, but a shared pilot still needs account-scoped access, written
+exchange/listing rules, formal FedEx oracle authorization, and a reviewed
+testnet resolver before any result is treated as authoritative.
 
 Positive findings: no committed production secrets were found, no obvious React DOM-XSS sinks were found, the app uses Zod schemas for most request validation, tests pass, and the code keeps live money movement/order signing absent rather than hidden behind an unsafe toggle.
 
@@ -23,6 +43,21 @@ Positive findings: no committed production secrets were found, no obvious React 
 - Performed live probes against the current dev server and a production-style single-process server on `PORT=4752 NODE_ENV=production`.
 
 ## Verification Evidence
+
+Current remediation evidence on 2026-05-20:
+
+- `npm run verify`: passed.
+- Vitest: 23 tests passed as of 2026-05-20.
+- Production build: passed.
+- Browser smoke: passed against `http://127.0.0.1:5178`, including wallet-ops panel coverage.
+- Wallet readiness route: `/api/wallet/readiness` returns `liveFundsAllowed: false`, `serverSideSigning: "disabled"`, Robinhood Chain wallet `not_configured`, and Solana `not_required` when no public wallet address is configured.
+- Dependency audit: `npm audit --audit-level=high` passes; broader JSON audit shows 16 low, 0 moderate, 0 high, 0 critical advisories after the `viem` update and `ws` override.
+- Production-style compiled server smoke: `PORT=4753 NODE_ENV=production npm run start` served `/health`, `/api/testnet/deployment-plan`, and returned `401` for unauthenticated `/api/admin/audit`.
+- Docker production image smoke: `docker build -t fedex-delivery-markets:local .` passed after adding `.dockerignore`; `docker run` served `/health` and `/api/testnet/deployment-plan`, returned `401` for unauthenticated `/api/admin/audit`, and ran as uid `1000`.
+- Runtime probe: `GET /api/admin/audit` returned `401 Unauthorized` without authorization when `DELIVERY_MARKETS_ADMIN_TOKEN` was unset.
+- Runtime probe: `GET /api/readiness` returned `securityPosture.adminAuthMode: "locked"`, `oracleMode: "locked"`, `adminRoutesFailClosed: true`, `oracleEventsRequireSignature: true`, `publicLedgerRedacted: true`, `rejectedOrdersPersisted: false`, `rateLimitsEnabled: true`, and all live money/FedEx/order-signing gates `false`.
+
+Original audit evidence from 2026-05-16:
 
 - `npm run verify`: passed.
 - Vitest: 10 tests passed.
@@ -38,8 +73,11 @@ Positive findings: no committed production secrets were found, no obvious React 
 ### SEC-01: Admin authorization fails open in production when token is missing
 
 - Rule ID: NODE-AUTH-001
-- Severity: Critical
+- Severity: Critical; status: remediated in current branch
 - Location: `src/server/auth.ts:7-12`, `src/server/app.ts:87`, `src/server/app.ts:143-153`
+- Current behavior: `requireAdmin` now returns `401` unless
+  `DELIVERY_MARKETS_ADMIN_TOKEN` is configured or
+  `ALLOW_DEV_OPEN_ADMIN=true` is set outside production.
 - Evidence:
 
 ```ts
@@ -66,16 +104,19 @@ HTTP/1.1 200 OK
 x-delivery-markets-auth: dev-open-admin
 ```
 
-- Impact: Any internet user could read audit data and submit oracle events if the deployment omits `DELIVERY_MARKETS_ADMIN_TOKEN`. This compromises pilot data integrity and partner trust.
+- Historical impact: Any internet user could read audit data and submit oracle events if the deployment omitted `DELIVERY_MARKETS_ADMIN_TOKEN`. This compromised pilot data integrity and partner trust in the audited commit.
 - Fix: Fail closed in `NODE_ENV=production` when `DELIVERY_MARKETS_ADMIN_TOKEN` is missing. Keep a separate explicit `ALLOW_DEV_OPEN_ADMIN=true` escape hatch for local development only.
 - Mitigation: Put admin and oracle routes behind network access controls, Basic/OIDC auth, and deployment checks that reject missing admin token.
-- False positive notes: This is intentional for local development, but the current implementation does not restrict the behavior to local development.
+- Residual risk: Shared pilot deployments still need real identity, account scoping, and deployment checks that require the token.
 
 ### SEC-02: Oracle event authenticity is optional and unsigned fixture events are accepted
 
 - Rule ID: ORACLE-AUTH-001
-- Severity: Critical
+- Severity: Critical; status: remediated in current branch
 - Location: `src/domain/oracle.ts:63-68`, `src/server/app.ts:94-98`
+- Current behavior: oracle signatures are required by default. Unsigned fixture
+  events require the explicit non-production `ALLOW_FIXTURE_ORACLE_EVENTS=true`
+  escape hatch, and admin auth still gates oracle routes.
 - Evidence:
 
 ```ts
@@ -95,10 +136,12 @@ HTTP/1.1 202 Accepted
 "verificationMode":"fixture","verificationStatus":"accepted"
 ```
 
-- Impact: If `ORACLE_SIGNER_ADDRESS` is missing, the server treats unsigned events as accepted. In a pilot, a forged `DELIVERED` or `HUB_ARRIVAL` event could poison the audit trail and any downstream resolver or dashboard that trusts accepted events.
+- Historical impact: If `ORACLE_SIGNER_ADDRESS` was missing, the server treated unsigned events as accepted. In a pilot, a forged `DELIVERED` or `HUB_ARRIVAL` event could poison the audit trail and any downstream resolver or dashboard that trusted accepted events.
 - Fix: In production, require `ORACLE_SIGNER_ADDRESS` and a valid signature for every oracle event. Treat fixture mode as test-only and block it unless `NODE_ENV !== "production"` and an explicit test flag is present.
 - Mitigation: Separate `/api/oracle/fixtures` from `/api/oracle/events`; never let fixture events share the accepted production event namespace.
-- False positive notes: The route currently says it does not submit live Hedera/EVM resolution. That reduces financial blast radius, but does not remove audit/partner-integrity risk.
+- Residual risk: A real pilot still needs signer key custody, rotation, replay
+  prevention, event corrections, and source-feed governance before oracle output
+  is authoritative.
 
 ## High Findings
 

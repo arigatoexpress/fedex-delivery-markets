@@ -19,7 +19,25 @@ The application currently exposes no route for:
 - mainnet settlement;
 - real FedEx production API access.
 
-The deploy script also requires `DEPLOY_CONTRACTS=true` before initializing a testnet deployment client.
+Wallet readiness is read-only. `DELIVERY_MARKETS_TESTNET_WALLET_ADDRESS` is a
+public address used for balance and chain checks only; the API does not require
+or use a private key. `npm run wallet:readiness` and `/api/wallet/readiness`
+report whether the EVM testnet wallet has gas and whether a configured receipt
+contract has bytecode. Solana is explicitly marked not required for the current
+EVM receipt path.
+
+The deploy script also requires both `DEPLOY_CONTRACTS=true` and
+`DEPLOY_PRIVATE_MARKET_CONTRACT=true` before broadcasting a testnet deployment.
+It reads `artifacts/contracts/PrivateDeliveryMarket.json`, so `npm run
+contracts:build` must succeed first.
+
+## Production Runtime
+
+The production Docker image runs `node dist-server/index.js` as the non-root
+`node` user. It copies the bundled server output and static client build instead
+of running `tsx` against source files in the runtime container. The Docker build
+context is constrained by `.dockerignore` so local `node_modules`, data,
+artifacts, and generated outputs cannot be copied into the Linux image.
 
 ## Oracle Trust
 
@@ -41,6 +59,18 @@ The app includes a separate risk engine for participant profiles. It warns or bl
 
 Paper simulation remains allowed so product teams can test UX and market design.
 
+## Recipient Access Controls
+
+Private AMM routes require:
+
+- a package-scoped access grant;
+- a matching recipient wallet in the package policy;
+- the package claim code fixture;
+- the one-time grant secret returned at claim time.
+
+The server persists only `grantSecretHash`, never the raw grant secret. A leaked
+grant id by itself cannot submit private orders or generate calldata previews.
+
 ## Required Reviews Before Production
 
 - FedEx legal and privacy.
@@ -50,3 +80,17 @@ Paper simulation remains allowed so product teams can test UX and market design.
 - Consumer-risk disclosures.
 - Insider/manipulation surveillance model.
 - Incident, correction, dispute, and exception handling.
+
+## Dependency Audit Note
+
+`npm audit --audit-level=high` passes locally. The direct `viem`/`ws` moderate
+advisory has been remediated with a pinned override. The broader audit still
+reports low advisories in third-party SDK/tooling transitive dependencies:
+
+- `@hashgraph/sdk` via ethers v5 packages;
+- `@polymarket/clob-client-v2` via ethers v5 packages;
+- `solc` via `tmp`.
+
+The available forced fixes are breaking downgrades for the current SDK set, so
+the pilot keeps these packages isolated to read-only, testnet, or build-time
+paths until compatible patched releases are available.
