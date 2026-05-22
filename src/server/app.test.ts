@@ -92,6 +92,21 @@ describe("delivery market lifecycle", () => {
 });
 
 describe("api", () => {
+  it("serves probe-friendly health aliases without enabling live systems", async () => {
+    const app = createApp({ store: createPilotStore(tempDataDir()) });
+
+    for (const path of ["/health", "/healthz", "/healthz/"]) {
+      const response = await app.request(path);
+      const payload = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(payload.mode).toBe("paper-only");
+      expect(payload.liveMoneyMovementAllowed).toBe(false);
+      expect(payload.liveFedExApiAllowed).toBe(false);
+      expect(payload.liveOrderSigningAllowed).toBe(false);
+    }
+  });
+
   it("persists paper orders to an append-only store", async () => {
     const store = createPilotStore(tempDataDir());
     const app = createApp({ store });

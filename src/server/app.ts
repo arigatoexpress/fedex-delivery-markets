@@ -44,6 +44,21 @@ const testnetPreviewRequestSchema = privateOrderRequestSchema.extend({
   orderId: z.string().min(4).max(120).optional()
 });
 
+function buildHealthPayload(store: PilotStore) {
+  return {
+    ok: true,
+    service: "fedex-delivery-markets",
+    mode: "paper-only",
+    pilotInfrastructureReady: true,
+    adminAuthConfigured: adminAuthConfigured(),
+    liveMoneyMovementAllowed: false,
+    liveFedExApiAllowed: false,
+    liveOrderSigningAllowed: false,
+    store: store.publicSnapshot(),
+    timestamp: new Date().toISOString()
+  };
+}
+
 export function createApp(options: { store?: PilotStore; serveStatic?: boolean } = {}) {
   const app = new Hono();
   const store = options.store ?? createPilotStore();
@@ -53,18 +68,15 @@ export function createApp(options: { store?: PilotStore; serveStatic?: boolean }
   app.use("/api/*", rateLimit({ windowMs: 60_000, max: 60 }));
 
   app.get("/health", (c) =>
-    c.json({
-      ok: true,
-      service: "fedex-delivery-markets",
-      mode: "paper-only",
-      pilotInfrastructureReady: true,
-      adminAuthConfigured: adminAuthConfigured(),
-      liveMoneyMovementAllowed: false,
-      liveFedExApiAllowed: false,
-      liveOrderSigningAllowed: false,
-      store: store.publicSnapshot(),
-      timestamp: new Date().toISOString()
-    })
+    c.json(buildHealthPayload(store))
+  );
+
+  app.get("/healthz", (c) =>
+    c.json(buildHealthPayload(store))
+  );
+
+  app.get("/healthz/", (c) =>
+    c.json(buildHealthPayload(store))
   );
 
   app.get("/api/demo-tracking-numbers", (c) =>
