@@ -15,7 +15,8 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
+      - run: npm ci --ignore-scripts
+      - run: npm rebuild esbuild protobufjs --foreground-scripts
       - run: npm run verify
       - run: npm run contracts:build
       - run: npm audit --audit-level=high
