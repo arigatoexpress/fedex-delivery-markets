@@ -1,88 +1,75 @@
 # Delivery Markets Lab
 
-Recipient-only, paper/testnet demo for a FedEx delivery-time prediction market concept.
+> A paper-only, synthetic-data demo that lets recipients explore delivery-time prediction markets — no real money, no real tracking, no live trading.
 
-The app lets a recipient enter a synthetic tracking number, claim access with a demo recipient wallet/code, view generated YES/NO delivery-time markets, quote a private AMM, submit recipient-gated paper orders before the hub cutoff, and preview Robinhood Chain / Arbitrum-compatible calldata. The architecture panel shows how Hedera HCS, Robinhood Chain, Polymarket, and CoW Protocol fit without triggering live trading or customer data flows.
+**Tech stack:** React 19 · TypeScript · Vite · Hono · Node.js · Ethers/Viem
 
-## Run
+*[Agent collaborators: see [AGENTS.md](AGENTS.md)]*
+
+## What this does
+
+This is a **prototype/demo** for a FedEx delivery-time prediction market concept. A recipient enters a synthetic tracking number, claims demo access, and views YES/NO markets tied to estimated delivery windows. They can quote a private AMM, submit paper orders, and preview testnet-compatible calldata — all without touching real customer data or live exchanges.
+
+The app is useful as a **governance conversation starter**: it clearly separates synthetic data from production data, paper simulation from real money, and prototype learning from approved deployment.
+
+## Quick start
 
 ```bash
+# Install dependencies
 npm install
+
+# Run the full-stack dev server (API + Vite UI)
 npm run dev
 ```
 
 Open `http://127.0.0.1:5178`.
 
-For a single production-style process after `npm run build`:
+For a production-style build:
 
 ```bash
+npm run build
 NODE_ENV=production npm run start
 ```
 
 Open `http://127.0.0.1:4747`.
 
-Demo tracking numbers:
+### Demo tracking numbers
 
-- `771234567890` pre-hub, markets open
-- `882345678901` hub-arrived, markets locked
-- `993456789012` delivered, markets resolved
+| Number | State |
+|--------|-------|
+| `771234567890` | Pre-hub, markets open |
+| `882345678901` | Hub-arrived, markets locked |
+| `993456789012` | Delivered, markets resolved |
 
 ## Verify
 
 ```bash
-npm run verify
+npm run verify        # typecheck + test + build
 npm run contracts:build
 npm run browser:smoke
 ```
 
-## Pilot Infrastructure
+## Key paths
 
-- Append-only paper orders: `data/orders.jsonl`
-- Append-only oracle events: `data/oracle-events.jsonl`
-- Append-only recipient grants: `data/access-grants.jsonl`
-- Recipient access route: `/api/access/claim`
-- Private AMM quote route: `/api/amm/quote`
-- Private order route: `/api/private/orders`
-- Testnet calldata preview route: `/api/testnet/calldata`
-- Private receipt contract: `contracts/PrivateDeliveryMarket.sol`
-- Admin audit route: `/api/admin/audit`
-- EIP-712 oracle event route: `/api/oracle/events`
-- Participant risk route: `/api/risk/evaluate`
-- Contract compile coverage for `contracts/DeliveryMarketResolver.sol`
+| Path | What it is |
+|------|------------|
+| `src/server/` | Hono API routes, store, and market logic |
+| `src/client/` | React + Vite frontend |
+| `contracts/` | Solidity contracts (paper-only) |
+| `data/` | Append-only paper orders, oracle events, and access grants |
+| `docs/` | API docs, AMM math, pilot plan, security posture, and runbooks |
+| `infra/` | Docker Compose and Render blueprints |
 
-See [API.md](docs/API.md), [AMM_MATH.md](docs/AMM_MATH.md), [PRIVATE_MARKET_PRODUCT_PLAN.md](docs/PRIVATE_MARKET_PRODUCT_PLAN.md), [TESTNET_RUNBOOK.md](docs/TESTNET_RUNBOOK.md), [PILOT_PLAN.md](docs/PILOT_PLAN.md), [SECURITY_AND_COMPLIANCE.md](docs/SECURITY_AND_COMPLIANCE.md), and [MARKET_RULEBOOK_DRAFT.md](docs/MARKET_RULEBOOK_DRAFT.md).
+See [docs/API.md](docs/API.md), [docs/AMM_MATH.md](docs/AMM_MATH.md), [docs/PILOT_PLAN.md](docs/PILOT_PLAN.md), and [docs/SECURITY_AND_COMPLIANCE.md](docs/SECURITY_AND_COMPLIANCE.md) for full details.
 
-Deployment scaffolds:
+## Safety posture
 
-- `Dockerfile`
-- `infra/docker-compose.yml`
-- `infra/render.yaml`
-- `.gcloudignore`
-- `docs/PRODUCTION_DEMO_RUNBOOK.md`
+- **No real FedEx API calls.**
+- **No real tracking numbers or customer payloads.**
+- **No live trading.** No Robinhood, Polymarket, Kalshi, CoW, or Hedera order submission.
+- **No funds or settlement.** No server-side wallet signing, exchange routing, or customer wagering.
+- SDK packages are present for future testnet readiness only.
 
-Testnet deploy path:
+## Status
 
-```bash
-npm run contracts:build
-DEPLOY_CONTRACTS=true \
-DEPLOY_PRIVATE_MARKET_CONTRACT=true \
-ROBINHOOD_CHAIN_RPC_URL=https://... \
-DEPLOYER_PRIVATE_KEY=0x... \
-npm run deploy:robinhood:testnet
-```
-
-Do not use a mainnet key. The deploy script only targets the receipt contract and still does not enable live funds, exchange routing, or settlement.
-
-## Safety Posture
-
-- No real FedEx API calls.
-- No real tracking numbers or customer payloads.
-- No Robinhood, Polymarket, Kalshi, CoW, or Hedera live order submission.
-- No server-side wallet signing, exchange order routing, funds, settlement, or customer wagering.
-- SDK packages are present for readiness and future testnet integration only.
-
-## Product Thesis
-
-Delivery-time uncertainty can be expressed as a regulated event-contract concept: “Will this package arrive on this date / inside this window?” The app’s cutoff gate closes trading once the package reaches the first major hub, where information asymmetry and operational influence risk increase. A privacy-preserving oracle path can anchor only hashed shipment/event metadata to Hedera and resolve a testnet EVM market on Robinhood Chain or Arbitrum Sepolia.
-
-The honest next step is a recipient-only internal simulator, FedEx sandbox oracle, and testnet receipt deployment, not a public live market.
+Paper-only prototype. Safe for local demo and governance review. Not connected to production FedEx systems.
