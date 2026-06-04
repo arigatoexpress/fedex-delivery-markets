@@ -43,10 +43,11 @@
     "solc": "^0.8.35",
     "typescript": "^5.8.3",
     "vite": "^6.3.5",
-    "vitest": "^3.1.3"
+    "vitest": "^4.1.8"
   },
   "overrides": {
     "bn.js": "^5.2.3",
+    "elliptic": "^6.6.1",
     "protobufjs": "^8.3.0",
     "ws": "^8.20.1"
   }
