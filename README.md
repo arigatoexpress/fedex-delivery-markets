@@ -87,9 +87,11 @@ npm run browser:smoke
 
 ## 🤝 Ops Hub (for non-technical ops managers)
 
-A companion **Obsidian knowledge base** turns this repo into a plain-English, visual handbook for ops managers — a **Canvas** system map, **Excalidraw** route maps, auto-updating **dashboards**, step-by-step **demo runbooks**, a safety/incident guide, and one-click setup for Windows/Mac/Linux + OneDrive/Google Drive.
+A companion **Obsidian knowledge base** lives in [**`ops-hub/`**](ops-hub/) — a plain-English, visual handbook for ops managers: a **Canvas** system map, **Excalidraw** route maps, auto-updating **dashboards**, step-by-step **demo runbooks**, a safety/incident guide, a glossary & FAQ, and one-click setup for Windows/Mac/Linux + OneDrive/Google Drive. The **Dataview** and **Excalidraw** plugins are **pre-installed**, so it opens turnkey.
 
-Ask the AI Efficiency team for the **`FedEx-Delivery-Markets-Ops-Vault`** (open the folder in the free [Obsidian](https://obsidian.md) app — plugins come pre-configured).
+**To use it:** install the free [Obsidian](https://obsidian.md) app → *Open folder as vault* → choose `ops-hub/` → click *Trust author and enable plugins* → open [`ops-hub/00 — START HERE.md`](ops-hub/00%20%E2%80%94%20START%20HERE.md).
+
+**Just browsing on GitHub?** The written guides render right here — start with [`ops-hub/Guides/What is Delivery Markets Lab.md`](ops-hub/Guides/What%20is%20Delivery%20Markets%20Lab.md), [`ops-hub/Guides/Safety & What This Is NOT.md`](ops-hub/Guides/Safety%20%26%20What%20This%20Is%20NOT.md), and the [`ops-hub/Runbooks/`](ops-hub/Runbooks/) folder. *(The Canvas/Excalidraw maps need the Obsidian app to view.)*
 
 ## 🗂️ Key paths
 
