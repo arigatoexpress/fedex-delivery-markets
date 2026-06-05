@@ -31,7 +31,7 @@
     "react-dom": "^19.1.0",
     "tsx": "^4.19.4",
     "viem": "^2.50.4",
-    "zod": "^3.25.7"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^22.15.19",
