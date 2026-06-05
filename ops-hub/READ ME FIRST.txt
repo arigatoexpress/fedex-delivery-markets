@@ -1,0 +1,32 @@
+============================================================
+ FedEx Delivery Markets — Operations Hub
+============================================================
+
+This folder is a knowledge base. It is best viewed with a free
+app called "Obsidian" (it turns these files into a clean, clickable
+handbook). You do NOT need to be technical to use it.
+
+------------------------------------------------------------
+WHAT TO DO (one time, ~5 minutes):
+------------------------------------------------------------
+1. Install Obsidian (free):  https://obsidian.md/download
+2. Open Obsidian.
+3. Click "Open folder as vault".
+4. Choose THIS folder:  FedEx-Delivery-Markets-Ops-Vault
+5. When it opens, click the file called:  "00 — START HERE"
+
+That's it. Everything else is explained inside.
+
+------------------------------------------------------------
+Don't want to install anything right now?
+------------------------------------------------------------
+Every file in here is plain text. You can open any ".md" file
+with Notepad (Windows), TextEdit (Mac), or any text editor and
+still read it — it just won't look as nice.
+
+Step-by-step install help for Windows, Mac, Linux, and how to
+sync this folder with Microsoft OneDrive or Google Drive is in
+the "Setup" folder.
+
+Questions? See "Guides" > "FAQ".
+============================================================

@@ -1,0 +1,14 @@
+{
+  "alwaysUpdateLinks": true,
+  "newLinkFormat": "shortest",
+  "useMarkdownLinks": false,
+  "attachmentFolderPath": "_attachments",
+  "readableLineLength": true,
+  "showInlineTitle": true,
+  "showLineNumber": false,
+  "foldHeading": true,
+  "foldIndent": true,
+  "tabSize": 2,
+  "promptDelete": true,
+  "useTab": false
+}
