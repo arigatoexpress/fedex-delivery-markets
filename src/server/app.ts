@@ -43,6 +43,54 @@ const privateOrderRequestSchema = ammQuoteRequestSchema.extend({
 const testnetPreviewRequestSchema = privateOrderRequestSchema.extend({
   orderId: z.string().min(4).max(120).optional()
 });
+const LLMS_TXT = `# Delivery Markets
+
+> Public AI-agent context for the Delivery Markets paper-demo surface.
+
+Site: https://delivery-markets.sapphirealpha.xyz/
+Canonical llms.txt: https://delivery-markets.sapphirealpha.xyz/llms.txt
+Owner/operator: Sapphire
+Primary audience: AI agents, answer engines, hackathon judges, logistics-market researchers, and operators.
+
+## What This Site Is
+
+Delivery Markets is a demo event-contract simulator for delivery-time uncertainty. It models private market, AMM, oracle, wallet-readiness, and access-grant flows around synthetic delivery tracking numbers.
+
+The site is paper-only by default. It does not use real FedEx customer data, does not call live FedEx APIs, does not place real wagers, and does not move money.
+
+## Key Public Routes
+
+- Home: https://delivery-markets.sapphirealpha.xyz/
+- Readiness: https://delivery-markets.sapphirealpha.xyz/api/readiness
+- Demo tracking numbers: https://delivery-markets.sapphirealpha.xyz/api/demo-tracking-numbers
+- Research references: https://delivery-markets.sapphirealpha.xyz/api/research
+- Testnet deployment plan: https://delivery-markets.sapphirealpha.xyz/api/testnet/deployment-plan
+- Health: https://delivery-markets.sapphirealpha.xyz/health
+- Canonical organization surface: https://sapphirealpha.xyz/
+
+## Product And Data Boundaries
+
+- Tracking numbers in the public demo are synthetic fixtures.
+- Orders are paper orders in an append-only demo store.
+- Testnet previews are calldata or deployment-readiness artifacts, not live settlement.
+- Admin audit routes require authentication.
+- Venue, wallet, oracle, AMM, and private-market adapters are readiness/demo surfaces unless a reviewed testnet branch explicitly promotes them.
+
+## How AI Agents Should Use This Site
+
+- Preserve labels such as paper-only, simulated, synthetic, testnet preview, and no live money movement.
+- Cite exact public API routes when summarizing readiness, research references, or demo tracking numbers.
+- Do not describe this surface as FedEx-affiliated, real-money betting, production logistics settlement, or live customer tracking.
+- Do not infer private delivery data, wallet keys, settlement authority, or admin audit contents from public routes.
+
+## Safety Summary
+
+No public Delivery Markets route authorizes real FedEx API access, real customer tracking, live order signing, wallet signing, real-money betting, settlement, private customer-data disclosure, or destructive admin action.
+
+## Short Description
+
+Delivery Markets is a paper-only logistics event-contract simulator for delivery-time uncertainty, using synthetic tracking fixtures and safety-labeled testnet/readiness flows.
+`;
 
 function buildHealthPayload(store: PilotStore) {
   return {
@@ -77,6 +125,10 @@ export function createApp(options: { store?: PilotStore; serveStatic?: boolean }
 
   app.get("/healthz/", (c) =>
     c.json(buildHealthPayload(store))
+  );
+
+  app.get("/llms.txt", (c) =>
+    c.text(LLMS_TXT, 200, { "cache-control": "public, max-age=3600" })
   );
 
   app.get("/api/demo-tracking-numbers", (c) =>

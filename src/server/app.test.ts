@@ -107,6 +107,20 @@ describe("api", () => {
     }
   });
 
+  it("serves llms.txt as paper-only agent context", async () => {
+    const app = createApp({ store: createPilotStore(tempDataDir()) });
+
+    const response = await app.request("/llms.txt");
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/plain");
+    expect(response.headers.get("cache-control")).toBe("public, max-age=3600");
+    expect(body).toContain("# Delivery Markets");
+    expect(body).toContain("https://delivery-markets.sapphirealpha.xyz/");
+    expect(body).toContain("No public Delivery Markets route authorizes real FedEx API access");
+  });
+
   it("persists paper orders to an append-only store", async () => {
     const store = createPilotStore(tempDataDir());
     const app = createApp({ store });
