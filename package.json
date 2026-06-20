@@ -25,7 +25,7 @@
     "@hashgraph/sdk": "^2.80.0",
     "@hono/node-server": "^1.14.1",
     "@polymarket/clob-client-v2": "^1.0.6",
-    "hono": "^4.7.10",
+    "hono": "^4.12.26",
     "lucide-react": "^0.511.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
