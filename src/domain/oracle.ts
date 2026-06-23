@@ -33,7 +33,8 @@ export type SignedOracleEventRequest = z.infer<typeof signedOracleEventRequestSc
 export const oracleTypedDataDomain = {
   name: "DeliveryMarketsOracle",
   version: "1",
-  chainId: ROBINHOOD_CHAIN_TESTNET.chainId
+  chainId: ROBINHOOD_CHAIN_TESTNET.chainId,
+  verifyingContract: "0x0000000000000000000000000000000000000000"
 } as const;
 
 export const oracleTypedDataTypes = {
@@ -45,7 +46,8 @@ export const oracleTypedDataTypes = {
     { name: "city", type: "string" },
     { name: "state", type: "string" },
     { name: "eventSource", type: "string" },
-    { name: "previousAnchorHash", type: "string" }
+    { name: "previousAnchorHash", type: "string" },
+    { name: "nonce", type: "uint256" }
   ]
 } as const;
 
@@ -59,13 +61,17 @@ export async function buildOracleEventRecord(
   }
 ): Promise<OracleEventRecord> {
   const now = options.now ?? new Date();
-  const event = normalizeEvent(request.event);
-  const eventHash = sha256(JSON.stringify(event));
+  const nonce = BigInt(options.nextSequenceNumber);
+  const event = normalizeEvent(request.event, nonce);
+  const eventHash = sha256(JSON.stringify(event, (_key, value) => {
+    if (typeof value === "bigint") return value.toString();
+    return value;
+  }));
   const expectedSignerAddress = options.expectedSignerAddress;
   const needsSignature = options.requireSignature ?? true;
   const signatureValid = needsSignature
     ? Boolean(expectedSignerAddress) &&
-      (await verifyOracleSignature(request, expectedSignerAddress as Address))
+      (await verifyOracleSignature(request, expectedSignerAddress as Address, nonce))
     : false;
   const accepted = needsSignature ? signatureValid : !expectedSignerAddress || signatureValid;
 
@@ -97,18 +103,21 @@ export function oracleSignatureRequired(): boolean {
   return !fixtureOracleEventsAllowed();
 }
 
-export function normalizeEvent(event: OracleEventPayload): OracleEventPayload & {
+export function normalizeEvent(event: OracleEventPayload, nonce: bigint): OracleEventPayload & {
   previousAnchorHash: string;
+  nonce: bigint;
 } {
   return {
     ...event,
-    previousAnchorHash: event.previousAnchorHash ?? "sha256:genesis"
+    previousAnchorHash: event.previousAnchorHash ?? "sha256:genesis",
+    nonce
   };
 }
 
 export async function verifyOracleSignature(
   request: SignedOracleEventRequest,
-  expectedSignerAddress: Address
+  expectedSignerAddress: Address,
+  nonce: bigint
 ): Promise<boolean> {
   if (!request.signature || !request.signerAddress) return false;
   if (request.signerAddress.toLowerCase() !== expectedSignerAddress.toLowerCase()) return false;
@@ -118,7 +127,7 @@ export async function verifyOracleSignature(
     domain: oracleTypedDataDomain,
     types: oracleTypedDataTypes,
     primaryType: "TrackingOracleEvent",
-    message: normalizeEvent(request.event),
+    message: normalizeEvent(request.event, nonce),
     signature: request.signature as Hex
   });
 }

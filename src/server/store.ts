@@ -101,7 +101,11 @@ export function createPilotStore(dataDir?: string): PilotStore {
 }
 
 function appendJsonLine(path: string, value: unknown): void {
-  appendFileSync(path, `${JSON.stringify(value)}\n`, "utf8");
+  appendFileSync(path, `${JSON.stringify(value, (_key, val) => {
+    if (typeof val === "bigint") return val.toString();
+    return val;
+  })}
+`, "utf8");
 }
 
 function readJsonLines<T>(path: string): T[] {

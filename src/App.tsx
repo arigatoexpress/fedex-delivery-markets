@@ -36,6 +36,12 @@ import type {
   WalletReadiness,
   WalletRailStatus
 } from "./shared/types";
+import { MarketCard } from "./components/MarketCard";
+import { OrderTicket } from "./components/OrderTicket";
+import { RouteMap } from "./components/RouteMap";
+import { Ledger } from "./components/Ledger";
+import { AccessTicket } from "./components/AccessTicket";
+import { fetchJson, postJson, formatCents, formatDate, formatDateTime, formatMarketStatus, formatPercent } from "./shared/format";
 
 declare global {
   interface Window {
@@ -306,115 +312,6 @@ export default function App() {
     .reduce((total, order) => total + order.notionalUsd, 0);
   const paperBuyingPower = Math.max(0, 10_000 - acceptedNotional);
   const openMarketCount = bundle?.markets.filter((market) => market.status === "OPEN").length ?? 0;
-  const renderRecipientAccessTicket = (idSuffix: string, extraClass = "") => (
-    <section className={`order-ticket recipient-ticket ${extraClass}`}>
-      <div className="section-heading">
-        <h3>Package Check</h3>
-        <LockKeyhole size={18} />
-      </div>
-      <label className="field-label" htmlFor={`wallet-address-${idSuffix}`}>
-        Demo recipient wallet
-      </label>
-      <input
-        id={`wallet-address-${idSuffix}`}
-        onChange={(event) => setWalletAddress(event.target.value)}
-        value={walletAddress}
-      />
-      <label className="field-label" htmlFor={`claim-code-${idSuffix}`}>
-        Demo claim code
-      </label>
-      <input
-        id={`claim-code-${idSuffix}`}
-        onChange={(event) => setClaimCode(event.target.value)}
-        value={claimCode}
-      />
-      <div className="dual-action">
-        <button onClick={() => void connectWallet()} type="button">
-          MetaMask
-        </button>
-        <button onClick={() => void claimRecipientAccess()} type="button">
-          Verify
-        </button>
-      </div>
-      <div className={`grant-status ${accessGranted ? "granted" : "pending"}`}>
-        <strong>{accessGranted ? "Ready to bet" : "Auto-filled for demo"}</strong>
-        <span>{accessGrant?.reason ?? "Only the package recipient can place the real version of this bet."}</span>
-      </div>
-    </section>
-  );
-  const renderPrivateAmmTicket = (idSuffix: string, extraClass = "") => (
-    <section className={`order-ticket ${extraClass}`}>
-      <div className="section-heading">
-        <h3>Place a Paper Bet</h3>
-        <CircleDollarSign size={18} />
-      </div>
-      {selectedMarket ? (
-        <>
-          <p>{selectedMarket.question}</p>
-          <div className="segmented">
-            <button
-              className={orderSide === "YES" ? "active" : ""}
-              onClick={() => setOrderSide("YES")}
-              type="button"
-            >
-              YES
-            </button>
-            <button
-              className={orderSide === "NO" ? "active" : ""}
-              onClick={() => setOrderSide("NO")}
-              type="button"
-            >
-              NO
-            </button>
-          </div>
-          <label className="field-label" htmlFor={`contracts-${idSuffix}`}>
-            Bet size
-          </label>
-          <input
-            id={`contracts-${idSuffix}`}
-            max={100}
-            min={1}
-            onChange={(event) => setContracts(Number(event.target.value))}
-            type="number"
-            value={contracts}
-          />
-          <div className="ticket-total">
-            <span>Price</span>
-            <strong>{formatCents(selectedPrice)}</strong>
-          </div>
-          <div className="ticket-total">
-            <span>Paper cost</span>
-            <strong>${notional.toFixed(2)}</strong>
-          </div>
-          {quote ? (
-            <div className="quote-metrics">
-              <span>Market price {formatCents(quote.spotPrice)}</span>
-              <span>Est. cost ${quote.totalCostUsd.toFixed(2)}</span>
-            </div>
-          ) : null}
-          <button
-            className="primary-action"
-            disabled={selectedMarket.status !== "OPEN"}
-            onClick={() => void submitPrivateOrder(selectedMarket, orderSide)}
-            type="button"
-          >
-            <ArrowRight size={17} />
-            Place Paper Bet
-          </button>
-          <button
-            className="secondary-action"
-            disabled={accessGranted}
-            onClick={() => void claimRecipientAccess()}
-            type="button"
-          >
-            {accessGranted ? "Package Verified" : "Verify Package"}
-          </button>
-        </>
-      ) : (
-        <p>Select a market.</p>
-      )}
-    </section>
-  );
 
   return (
     <div className="app-shell">
@@ -526,8 +423,33 @@ export default function App() {
         </section>
 
         <div className="mobile-ticket-stack">
-          {renderPrivateAmmTicket("mobile", "mobile-ticket")}
-          {renderRecipientAccessTicket("mobile", "mobile-ticket")}
+          <OrderTicket
+            selectedMarket={selectedMarket}
+            orderSide={orderSide}
+            contracts={contracts}
+            selectedPrice={selectedPrice}
+            notional={notional}
+            quote={quote}
+            onSideChange={setOrderSide}
+            onContractsChange={setContracts}
+            onSubmit={submitPrivateOrder}
+            onVerify={claimRecipientAccess}
+            accessGranted={accessGranted}
+            idSuffix="mobile"
+            extraClass="mobile-ticket"
+          />
+          <AccessTicket
+            walletAddress={walletAddress}
+            claimCode={claimCode}
+            accessGranted={accessGranted}
+            accessGrant={accessGrant}
+            onWalletChange={setWalletAddress}
+            onClaimCodeChange={setClaimCode}
+            onConnectWallet={connectWallet}
+            onClaimAccess={claimRecipientAccess}
+            idSuffix="mobile"
+            extraClass="mobile-ticket"
+          />
         </div>
 
         {bundle ? (
@@ -547,53 +469,24 @@ export default function App() {
 
             <section className="market-grid">
               {bundle.markets.map((market) => (
-                <article
-                  className={selectedMarketId === market.id ? "market-card selected" : "market-card"}
+                <MarketCard
                   key={market.id}
-                  onClick={() => setSelectedMarketId(market.id)}
-                >
-                  <div className="market-head">
-                    <span className={`mini-status ${market.status.toLowerCase()}`}>
-                      {formatMarketStatus(market.status)}
-                    </span>
-                    <span>{market.kind.replace("_", " ")}</span>
-                  </div>
-                  <h4>{market.question}</h4>
-                  <div className="price-row">
-                    <PriceTile label="YES" price={market.yesPrice} />
-                    <PriceTile label="NO" price={market.noPrice} />
-                  </div>
-                  <div className="trade-row">
-                    <button
-                      disabled={market.status !== "OPEN"}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setSelectedMarketId(market.id);
-                        setOrderSide("YES");
-                        void refreshQuote(market, "YES", contracts, bundle.shipment.trackingNumber);
-                      }}
-                      title="Pick YES"
-                      type="button"
-                    >
-                      <CheckCircle2 size={16} />
-                      Pick YES
-                    </button>
-                    <button
-                      disabled={market.status !== "OPEN"}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setSelectedMarketId(market.id);
-                        setOrderSide("NO");
-                        void refreshQuote(market, "NO", contracts, bundle.shipment.trackingNumber);
-                      }}
-                      title="Pick NO"
-                      type="button"
-                    >
-                      <Ban size={16} />
-                      Pick NO
-                    </button>
-                  </div>
-                </article>
+                  market={market}
+                  selected={selectedMarketId === market.id}
+                  onSelect={() => setSelectedMarketId(market.id)}
+                  onPickYes={(event) => {
+                    event.stopPropagation();
+                    setSelectedMarketId(market.id);
+                    setOrderSide("YES");
+                    void refreshQuote(market, "YES", contracts, bundle.shipment.trackingNumber);
+                  }}
+                  onPickNo={(event) => {
+                    event.stopPropagation();
+                    setSelectedMarketId(market.id);
+                    setOrderSide("NO");
+                    void refreshQuote(market, "NO", contracts, bundle.shipment.trackingNumber);
+                  }}
+                />
               ))}
             </section>
 
@@ -610,7 +503,7 @@ export default function App() {
                       <div>
                         <strong>{event.label}</strong>
                         <span>
-                          {event.facility} · {event.city}, {event.state} · {formatDateTime(event.timestamp)}
+                          {event.facility} &middot; {event.city}, {event.state} &middot; {formatDateTime(event.timestamp)}
                         </span>
                       </div>
                     </div>
@@ -629,8 +522,33 @@ export default function App() {
       </main>
 
       <aside className="right-rail">
-        {renderPrivateAmmTicket("desktop", "desktop-ticket")}
-        {renderRecipientAccessTicket("desktop", "desktop-ticket")}
+        <OrderTicket
+          selectedMarket={selectedMarket}
+          orderSide={orderSide}
+          contracts={contracts}
+          selectedPrice={selectedPrice}
+          notional={notional}
+          quote={quote}
+          onSideChange={setOrderSide}
+          onContractsChange={setContracts}
+          onSubmit={submitPrivateOrder}
+          onVerify={claimRecipientAccess}
+          accessGranted={accessGranted}
+          idSuffix="desktop"
+          extraClass="desktop-ticket"
+        />
+        <AccessTicket
+          walletAddress={walletAddress}
+          claimCode={claimCode}
+          accessGranted={accessGranted}
+          accessGrant={accessGrant}
+          onWalletChange={setWalletAddress}
+          onClaimCodeChange={setClaimCode}
+          onConnectWallet={connectWallet}
+          onClaimAccess={claimRecipientAccess}
+          idSuffix="desktop"
+          extraClass="desktop-ticket"
+        />
 
         <section className="rail-section inspector meeting-card">
           <div className="section-heading">
@@ -643,29 +561,7 @@ export default function App() {
           </p>
         </section>
 
-        <section className="rail-section inspector">
-          <div className="section-heading">
-            <h3>Recent Paper Bets</h3>
-            <Activity size={18} />
-          </div>
-          <div className="ledger-list">
-            {ledger.length ? (
-              ledger.slice(0, 5).map((order) => (
-                <div className="ledger-row" key={order.id}>
-                  <span className={order.status === "ACCEPTED" ? "accepted" : "blocked"}>
-                    {order.status}
-                  </span>
-                  <strong>
-                    {order.side} · {order.contracts} @ {formatCents(order.limitPrice)}
-                  </strong>
-                  <small>Paper bet recorded. No money moved.</small>
-                </div>
-              ))
-            ) : (
-              <p>No paper bets yet.</p>
-            )}
-          </div>
-        </section>
+        <Ledger orders={ledger} />
       </aside>
     </div>
   );
@@ -687,67 +583,6 @@ function RailItem({
         <strong>{title}</strong>
         <span>{value}</span>
       </div>
-    </div>
-  );
-}
-
-function RouteMap({ bundle }: { bundle: DeliveryMarketBundle }) {
-  const statusIndex =
-    bundle.cutoff.status === "RESOLVED" ? 3 : bundle.cutoff.status === "CUTOFF_LOCKED" ? 2 : 1;
-
-  return (
-    <div className="route-map" aria-label="Shipment route visualization">
-      <svg viewBox="0 0 560 220" role="img">
-        <defs>
-          <linearGradient id="routeGradient" x1="0" x2="1">
-            <stop offset="0%" stopColor="#4d148c" />
-            <stop offset="45%" stopColor="#ff6600" />
-            <stop offset="100%" stopColor="#00a86b" />
-          </linearGradient>
-        </defs>
-        <path
-          className="route-shadow"
-          d="M70 155 C170 40, 260 190, 360 78 S500 95, 506 62"
-          fill="none"
-          strokeWidth="18"
-        />
-        <path
-          d="M70 155 C170 40, 260 190, 360 78 S500 95, 506 62"
-          fill="none"
-          stroke="url(#routeGradient)"
-          strokeLinecap="round"
-          strokeWidth="9"
-        />
-        {[{ x: 70, y: 155 }, { x: 230, y: 111 }, { x: 365, y: 78 }, { x: 506, y: 62 }].map(
-          (point, index) => (
-            <g key={`${point.x}-${point.y}`}>
-              <circle
-                cx={point.x}
-                cy={point.y}
-                fill={index <= statusIndex ? "#ffffff" : "#e7e1ee"}
-                r="17"
-                stroke={index <= statusIndex ? "#4d148c" : "#c8bdd8"}
-                strokeWidth="5"
-              />
-              {index <= statusIndex ? (
-                <circle cx={point.x} cy={point.y} fill="#ff6600" r="6" />
-              ) : null}
-            </g>
-          )
-        )}
-        <text x="42" y="196">{bundle.shipment.origin}</text>
-        <text x="326" y="48">Hub cutoff</text>
-        <text x="438" y="34">{bundle.shipment.destination}</text>
-      </svg>
-    </div>
-  );
-}
-
-function PriceTile({ label, price }: { label: string; price: number }) {
-  return (
-    <div className={label === "YES" ? "price-tile yes" : "price-tile no"}>
-      <span>{label}</span>
-      <strong>{formatCents(price)}</strong>
     </div>
   );
 }
@@ -807,12 +642,6 @@ function formatWalletStatus(status: WalletRailStatus): string {
   return "Not required";
 }
 
-function formatMarketStatus(status?: MarketStatus): string {
-  if (status === "CUTOFF_LOCKED") return "Closed";
-  if (status === "RESOLVED") return "Delivered";
-  return "Open";
-}
-
 function formatCutoffReason(bundle: DeliveryMarketBundle): string {
   if (bundle.cutoff.status === "OPEN") {
     return "Betting is open until this package reaches the cutoff point.";
@@ -821,54 +650,4 @@ function formatCutoffReason(bundle: DeliveryMarketBundle): string {
     return "The delivery is complete, so the paper market is resolved.";
   }
   return "This package has reached the cutoff point, so betting is closed.";
-}
-
-async function fetchJson<T>(url: string): Promise<T> {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Request failed: ${response.status}`);
-  }
-  return (await response.json()) as T;
-}
-
-async function postJson<T>(url: string, body: unknown): Promise<T> {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body)
-  });
-  const payload = (await response.json()) as T;
-  if (!response.ok) {
-    const message =
-      payload && typeof payload === "object" && "error" in payload
-        ? String((payload as { error: unknown }).error)
-        : `Request failed: ${response.status}`;
-    throw new Error(message);
-  }
-  return payload;
-}
-
-function formatCents(value: number): string {
-  return `${Math.round(value * 100)}¢`;
-}
-
-function formatPercent(value: number): string {
-  return `${Math.round(value * 100)}%`;
-}
-
-function formatDate(input: string): string {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric"
-  }).format(new Date(input));
-}
-
-function formatDateTime(input: string): string {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit"
-  }).format(new Date(input));
 }

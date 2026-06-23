@@ -445,7 +445,7 @@ describe("api", () => {
       domain: oracleTypedDataDomain,
       types: oracleTypedDataTypes,
       primaryType: "TrackingOracleEvent",
-      message: normalizeEvent(event)
+      message: normalizeEvent(event, 1n)
     });
 
     const response = await app.request("/api/oracle/events", {

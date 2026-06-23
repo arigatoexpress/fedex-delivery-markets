@@ -1,6 +1,8 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { z } from "zod";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   buildPrivateMarketPreviews,
   getTestnetDeploymentPlan
@@ -34,6 +36,7 @@ import { installStaticRoutes } from "./static";
 import { parseLimitedJson, DEFAULT_JSON_BODY_LIMIT_BYTES } from "./request";
 import { rateLimit } from "./rateLimit";
 import { securityHeaders } from "./securityHeaders";
+import { logger } from "./logger";
 
 const trackingOnlySchema = z.object({ trackingNumber: z.string().min(8) });
 const privateOrderRequestSchema = ammQuoteRequestSchema.extend({
@@ -126,6 +129,41 @@ export function createApp(options: { store?: PilotStore; serveStatic?: boolean }
   app.get("/healthz/", (c) =>
     c.json(buildHealthPayload(store))
   );
+
+  app.get("/ready", (c) => {
+    const storeWritable = (() => {
+      try {
+        store.snapshot();
+        return true;
+      } catch {
+        return false;
+      }
+    })();
+    const staticBuildExists = existsSync(join(process.cwd(), "dist", "index.html"));
+    const ok = storeWritable && staticBuildExists;
+    return c.json(
+      {
+        ok,
+        storeWritable,
+        staticBuildExists,
+        timestamp: new Date().toISOString()
+      },
+      ok ? 200 : 503
+    );
+  });
+
+  app.get("/robots.txt", (c) => {
+    const robotsPath = join(process.cwd(), "public", "robots.txt");
+    if (existsSync(robotsPath)) {
+      return c.text(readFileSync(robotsPath, "utf8"), 200, {
+        "content-type": "text/plain; charset=utf-8",
+        "cache-control": "public, max-age=86400"
+      });
+    }
+    return c.text("User-agent: *\nDisallow: /api/\nAllow: /\n", 200, {
+      "content-type": "text/plain; charset=utf-8"
+    });
+  });
 
   app.get("/llms.txt", (c) =>
     c.text(LLMS_TXT, 200, { "cache-control": "public, max-age=3600" })
@@ -326,7 +364,9 @@ export function createApp(options: { store?: PilotStore; serveStatic?: boolean }
     return c.json(evaluateParticipantRisk(parsed.data));
   });
 
-  app.get("/api/oracle/events", requireAdmin, (c) => c.json({ events: store.listOracleEvents(50) }));
+  app.get("/api/oracle/events", requireAdmin, (c) =>
+    c.json({ events: store.listOracleEvents(50).map(toSafeOracleEvent) })
+  );
 
   app.post("/api/oracle/events", requireAdmin, async (c) => {
     const parsed = await parseLimitedJson(c, signedOracleEventRequestSchema);
@@ -350,11 +390,12 @@ export function createApp(options: { store?: PilotStore; serveStatic?: boolean }
       requireSignature,
       nextSequenceNumber: store.nextOracleSequenceNumber()
     });
+    const safeRecord = toSafeOracleRecord(record);
 
     if (record.verificationStatus !== "accepted") {
       return c.json(
         {
-          oracleEvent: record,
+          oracleEvent: safeRecord,
           liveResolutionSubmitted: false
         },
         401
@@ -365,7 +406,7 @@ export function createApp(options: { store?: PilotStore; serveStatic?: boolean }
 
     return c.json(
       {
-        oracleEvent: record,
+        oracleEvent: safeRecord,
         liveResolutionSubmitted: false,
         note:
           "Oracle event recorded to the pilot ledger only; no live Hedera submission or EVM resolution was executed."
@@ -430,7 +471,7 @@ export function createApp(options: { store?: PilotStore; serveStatic?: boolean }
     c.json({
       snapshot: store.snapshot(),
       latestOrders: store.listOrders(20),
-      latestOracleEvents: store.listOracleEvents(20),
+      latestOracleEvents: store.listOracleEvents(20).map(toSafeOracleEvent),
       liveMoneyMovementAllowed: false,
       liveOrderSigningAllowed: false
     })
@@ -455,4 +496,18 @@ export function createApp(options: { store?: PilotStore; serveStatic?: boolean }
   }
 
   return app;
+}
+
+function toSafeOracleRecord(record: any) {
+  return {
+    ...record,
+    event: toSafeOracleEvent(record.event)
+  };
+}
+
+function toSafeOracleEvent(event: any) {
+  return {
+    ...event,
+    nonce: typeof event.nonce === "bigint" ? event.nonce.toString() : event.nonce
+  };
 }

@@ -1,5 +1,6 @@
 import { serve } from "@hono/node-server";
 import { createApp } from "./app";
+import { logServerStartup } from "./logger";
 
 const port = Number(process.env.PORT ?? 4747);
 
@@ -9,6 +10,6 @@ serve(
     port
   },
   (info) => {
-    console.log(`Delivery Markets API listening on http://127.0.0.1:${info.port}`);
+    logServerStartup(info.port);
   }
 );

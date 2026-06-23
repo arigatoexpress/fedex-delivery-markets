@@ -1,0 +1,13 @@
+User-agent: *
+Disallow: /api/
+Disallow: /api/admin/
+Disallow: /api/oracle/
+Disallow: /api/private/
+Disallow: /api/orders
+Disallow: /api/access/claim
+Disallow: /api/amm/quote
+Disallow: /api/testnet/calldata
+Disallow: /api/risk/evaluate
+Disallow: /api/wallet/readiness
+Allow: /
+Allow: /llms.txt
