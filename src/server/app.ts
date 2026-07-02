@@ -34,6 +34,7 @@ import { installStaticRoutes } from "./static";
 import { parseLimitedJson, DEFAULT_JSON_BODY_LIMIT_BYTES } from "./request";
 import { rateLimit } from "./rateLimit";
 import { securityHeaders } from "./securityHeaders";
+import { getStations, simulateDispatch, generateAiReasoning, solveOptimalDispatch } from "../domain/dispatchEngine";
 
 const trackingOnlySchema = z.object({ trackingNumber: z.string().min(8) });
 const privateOrderRequestSchema = ammQuoteRequestSchema.extend({
@@ -42,6 +43,21 @@ const privateOrderRequestSchema = ammQuoteRequestSchema.extend({
 });
 const testnetPreviewRequestSchema = privateOrderRequestSchema.extend({
   orderId: z.string().min(4).max(120).optional()
+});
+
+const simulateDispatchSchema = z.object({
+  stationId: z.string(),
+  dispatchTimeMin: z.number(),
+  selectiveRouteHolds: z.record(z.string(), z.number()).optional(),
+  customEtas: z.record(z.string(), z.number()).optional(),
+  optimizerMode: z.enum(["MIN_PENALTY", "MAX_ON_TIME", "EXPRESS_ONLY"]).optional(),
+  weather: z.enum(["CLEAR", "RAIN", "SNOW", "THUNDERSTORM"]).optional()
+});
+const solveDispatchSchema = z.object({
+  stationId: z.string(),
+  customEtas: z.record(z.string(), z.number()).optional(),
+  optimizerMode: z.enum(["MIN_PENALTY", "MAX_ON_TIME", "EXPRESS_ONLY"]).optional(),
+  weather: z.enum(["CLEAR", "RAIN", "SNOW", "THUNDERSTORM"]).optional()
 });
 const LLMS_TXT = `# Delivery Markets
 
@@ -448,6 +464,53 @@ export function createApp(options: { store?: PilotStore; serveStatic?: boolean }
         "Shipment has not reached a delivered fixture state; no market resolution applied.",
       bundle
     });
+  });
+
+  // Dispatch Simulator endpoints
+  app.get("/api/dispatch/stations", (c) => {
+    return c.json({ stations: getStations() });
+  });
+
+  app.post("/api/dispatch/solve", async (c) => {
+    const parsed = await parseLimitedJson(c, solveDispatchSchema);
+    if (!parsed.ok) {
+      return c.json(parsed.payload, parsed.status);
+    }
+    const { stationId, customEtas, optimizerMode, weather } = parsed.data;
+    try {
+      const result = solveOptimalDispatch(stationId, customEtas, optimizerMode, weather);
+      return c.json(result);
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : "Solving failed" }, 400);
+    }
+  });
+
+  app.post("/api/dispatch/simulate", async (c) => {
+    const parsed = await parseLimitedJson(c, simulateDispatchSchema);
+    if (!parsed.ok) {
+      return c.json(parsed.payload, parsed.status);
+    }
+    const { stationId, dispatchTimeMin, selectiveRouteHolds, customEtas, optimizerMode, weather } = parsed.data;
+    try {
+      const result = simulateDispatch(stationId, dispatchTimeMin, selectiveRouteHolds, customEtas, optimizerMode, weather);
+      return c.json(result);
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : "Simulation failed" }, 400);
+    }
+  });
+
+  app.post("/api/dispatch/ai-reasoning", async (c) => {
+    const parsed = await parseLimitedJson(c, simulateDispatchSchema);
+    if (!parsed.ok) {
+      return c.json(parsed.payload, parsed.status);
+    }
+    const { stationId, dispatchTimeMin, selectiveRouteHolds, customEtas, optimizerMode, weather } = parsed.data;
+    try {
+      const reports = generateAiReasoning(stationId, dispatchTimeMin, selectiveRouteHolds, customEtas, optimizerMode, weather);
+      return c.json({ reports });
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : "AI Reasoning failed" }, 400);
+    }
   });
 
   if (options.serveStatic ?? process.env.NODE_ENV === "production") {

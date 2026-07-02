@@ -14,10 +14,12 @@ import {
   ScanLine,
   ShieldCheck,
   Sparkles,
+  Sliders,
   Truck,
   Wallet
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import DispatchHub from "./client/components/DispatchHub";
 import type {
   DeliveryMarket,
   DeliveryMarketBundle,
@@ -90,6 +92,7 @@ export default function App() {
   const [orderSide, setOrderSide] = useState<OrderSide>("YES");
   const [notice, setNotice] = useState<string>("Ready");
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<"markets" | "dispatch">("markets");
 
   useEffect(() => {
     void Promise.all([
@@ -416,6 +419,47 @@ export default function App() {
     </section>
   );
 
+  if (activeTab === "dispatch") {
+    return (
+      <div className="app-shell dispatch-mode">
+        <aside className="left-rail">
+          <div className="brand-block">
+            <div className="brand-mark">
+              <Box size={22} />
+            </div>
+            <div>
+              <p className="eyebrow">Sort-Ops Simulator</p>
+              <h1>Delivery Markets</h1>
+            </div>
+          </div>
+
+          <div className="tab-switcher">
+            <button
+              className="tab-btn"
+              onClick={() => setActiveTab("markets")}
+              type="button"
+            >
+              <Activity size={16} />
+              Prediction Markets
+            </button>
+            <button
+              className="tab-btn active"
+              onClick={() => setActiveTab("dispatch")}
+              type="button"
+            >
+              <Sliders size={16} />
+              Dispatch Decision Hub
+            </button>
+          </div>
+        </aside>
+
+        <main className="workspace-wide">
+          <DispatchHub />
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="app-shell">
       <aside className="left-rail">
@@ -427,6 +471,25 @@ export default function App() {
             <p className="eyebrow">Paper Money Demo</p>
             <h1>Delivery Bet</h1>
           </div>
+        </div>
+
+        <div className="tab-switcher">
+          <button
+            className="tab-btn active"
+            onClick={() => setActiveTab("markets")}
+            type="button"
+          >
+            <Activity size={16} />
+            Prediction Markets
+          </button>
+          <button
+            className="tab-btn"
+            onClick={() => setActiveTab("dispatch")}
+            type="button"
+          >
+            <Sliders size={16} />
+            Dispatch Decision Hub
+          </button>
         </div>
 
         <div className="mode-strip">
