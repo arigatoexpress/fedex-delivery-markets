@@ -10,5 +10,8 @@ export default defineConfig({
       "/api": "http://127.0.0.1:4747",
       "/health": "http://127.0.0.1:4747"
     }
+  },
+  build: {
+    target: "esnext"
   }
 });
