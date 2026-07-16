@@ -43,7 +43,7 @@ Everything in this section refreshes **automatically** — no stale snapshots to
 - 🔒 **Dependency security** → [Dependabot alerts](https://github.com/arigatoexpress/fedex-delivery-markets/security/dependabot)
 
 > [!NOTE]
-> **Recent hardening (June 2026):** critical/high dependency CVEs remediated ([#13](https://github.com/arigatoexpress/fedex-delivery-markets/pull/13)); GitHub Actions pinned to commit SHAs; lockfile + Dependabot enabled; minimal workflow permissions ([#4](https://github.com/arigatoexpress/fedex-delivery-markets/pull/4)). Every pull request runs `typecheck + tests + build`.
+> **Recent hardening (July 2026):** supply-chain wave — `@grpc/grpc-js` HIGH crash/DoS overridden ([#26](https://github.com/arigatoexpress/fedex-delivery-markets/pull/26)); stale vuln overrides refreshed + CI `npm audit` gate scoped to critical ([#20](https://github.com/arigatoexpress/fedex-delivery-markets/pull/20)); hono/vite/esbuild bumped past remaining advisories; Dependabot batch merged (#5–#11, #21–#22). Earlier (June 2026): critical/high CVEs remediated ([#13](https://github.com/arigatoexpress/fedex-delivery-markets/pull/13)); Actions pinned to commit SHAs; minimal workflow permissions ([#4](https://github.com/arigatoexpress/fedex-delivery-markets/pull/4)). Every pull request runs `typecheck + tests + build`.
 
 ---
 
