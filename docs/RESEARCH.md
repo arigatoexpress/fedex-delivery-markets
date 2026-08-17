@@ -40,7 +40,7 @@ Sources:
 
 Hedera Consensus Service topics can receive messages, and mirror nodes expose ordered topic messages with consensus timestamps and sequence numbers. HCS proves an oracle message was anchored at a time and in an order; it does not prove the underlying FedEx event is true by itself.
 
-Demo decision: model HCS anchors with deterministic hashes and sequence numbers. A testnet upgrade would submit compact event hashes with `@hashgraph/sdk`, then read back the mirror node topic stream before resolving a market.
+Demo decision: model HCS anchors with deterministic hashes and sequence numbers. A reviewed testnet upgrade would add a compatible HCS client, submit compact event hashes, and read back the mirror node topic stream before resolving a market.
 
 Sources:
 
