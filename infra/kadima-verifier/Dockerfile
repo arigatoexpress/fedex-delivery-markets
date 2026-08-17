@@ -1,14 +1,16 @@
 # syntax=docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e
 
 FROM node:24.15.0-bookworm-slim@sha256:682f301a9e8e5731d4bb1889182a2186fe65a312cc81ae86cea6038ef8b1603f AS fetch
+ARG SOURCE_DATE_EPOCH
 WORKDIR /seed
 COPY --chmod=0444 package.json package-lock.json infra/kadima-verifier/SHA256SUMS ./
-RUN sha256sum --check --strict SHA256SUMS
+RUN test "${SOURCE_DATE_EPOCH:-}" = "1786731161" \
+    && sha256sum --check --strict SHA256SUMS
 RUN npm ci --ignore-scripts --no-audit --no-fund --cache=/opt/npm-cache \
     && rm -rf node_modules
 
 FROM node:24.15.0-bookworm-slim@sha256:682f301a9e8e5731d4bb1889182a2186fe65a312cc81ae86cea6038ef8b1603f AS deps
-ENV SOURCE_DATE_EPOCH=1786731161
+ARG SOURCE_DATE_EPOCH
 WORKDIR /opt/fedex-deps
 COPY --chmod=0444 package.json package-lock.json infra/kadima-verifier/SHA256SUMS ./
 COPY --from=fetch /opt/npm-cache /opt/npm-cache
