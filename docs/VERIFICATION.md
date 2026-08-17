@@ -1,0 +1,1 @@
+This repository remains paper-only with no real FedEx data, money, wallet signing, deployment, or live trading. The canonical validation suite is `npm run verify`, which runs typecheck, tests, client build, and server build. The Kadima verifier executes this suite in a digest-pinned, non-root, networkless, read-only, resource-bounded container.
