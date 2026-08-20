@@ -20,12 +20,12 @@ page.on("response", (response) => {
 
 await page.goto(baseUrl, { waitUntil: "networkidle" });
 await page.getByText("Practice bets only").waitFor({ timeout: 5000 });
-await page.getByText("This is a paper-money demo for the meeting.").waitFor({ timeout: 5000 });
+await page.getByRole("heading", { name: "This is a paper-money demo for the meeting." }).waitFor({ timeout: 5000 });
 await page.getByRole("heading", { name: /Place a Paper Bet/i }).waitFor({ timeout: 5000 });
-const rightRail = page.locator(".right-rail");
-await rightRail.getByRole("button", { name: /Place Paper Bet/i }).click();
+const ticket = page.locator(".dm-ticket");
+await ticket.getByRole("button", { name: /Place Paper Bet/i }).click();
 await page.getByText("Paper bet placed. No money moved.").waitFor({ timeout: 5000 });
-await page.getByText("Recent Paper Bets").waitFor({ timeout: 5000 });
+await page.getByRole("heading", { name: "Recent Paper Bets" }).waitFor({ timeout: 5000 });
 await page.getByRole("button", { name: /882345678901/i }).click();
 await page.getByRole("heading", { name: /Betting is closed/i }).waitFor({ timeout: 5000 });
 await page.screenshot({ path: "artifacts/browser-smoke-desktop.png", fullPage: true });
