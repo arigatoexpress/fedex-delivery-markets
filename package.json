@@ -16,26 +16,24 @@
     "test": "vitest run",
     "build": "npm run build:client && npm run build:server",
     "build:client": "tsc --noEmit && vite build",
-    "build:server": "esbuild src/server/index.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist-server/index.js --external:@polymarket/clob-client-v2 --external:@cowprotocol/cow-sdk --external:@hashgraph/sdk",
+    "build:server": "esbuild src/server/index.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist-server/index.js --external:@cowprotocol/cow-sdk",
     "browser:smoke": "node scripts/browser-smoke.mjs",
     "verify": "npm run typecheck && npm run test && npm run build"
   },
   "dependencies": {
     "@cowprotocol/cow-sdk": "^9.2.2",
-    "@hashgraph/sdk": "^2.80.0",
-    "@hono/node-server": "^1.14.1",
-    "@polymarket/clob-client-v2": "^1.0.6",
-    "hono": "^4.12.25",
-    "lucide-react": "^0.511.0",
+    "@hono/node-server": "^1.19.15",
+    "hono": "^4.13.7",
+    "lucide-react": "^1.31.0",
     "react": "^19.1.0",
     "react-dom": "^19.2.7",
     "tsx": "^4.22.4",
-    "viem": "^2.54.1",
+    "viem": "^2.55.2",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^22.15.19",
-    "@types/react": "^19.1.4",
+    "@types/react": "^19.2.17",
     "@types/react-dom": "^19.1.5",
     "@vitejs/plugin-react": "4.7.0",
     "concurrently": "^9.1.2",
@@ -43,15 +41,11 @@
     "solc": "^0.8.35",
     "typescript": "^5.8.3",
     "vite": "^6.4.3",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.11"
   },
   "overrides": {
-    "@grpc/grpc-js": "^1.12.7",
-    "bn.js": "^5.2.3",
-    "elliptic": "^6.6.1",
     "form-data": "^4.0.6",
-    "protobufjs": "^8.6.5",
-    "shell-quote": "^1.8.4",
+    "shell-quote": "^1.10.0",
     "tmp": "^0.2.5",
     "ws": "^8.21.0"
   }

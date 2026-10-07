@@ -83,14 +83,9 @@ grant id by itself cannot submit private orders or generate calldata previews.
 
 ## Dependency Audit Note
 
-`npm audit --audit-level=high` passes locally. The direct `viem`/`ws` moderate
-advisory has been remediated with a pinned override. The broader audit still
-reports low advisories in third-party SDK/tooling transitive dependencies:
-
-- `@hashgraph/sdk` via ethers v5 packages;
-- `@polymarket/clob-client-v2` via ethers v5 packages;
-- `solc` via `tmp`.
-
-The available forced fixes are breaking downgrades for the current SDK set, so
-the pilot keeps these packages isolated to read-only, testnet, or build-time
-paths until compatible patched releases are available.
+The full `npm audit` passes locally. The Hedera and Polymarket SDKs were removed
+because they were used only by package-import readiness probes while pulling in
+unpatched transitive advisories. Their readiness entries now remain explicitly
+unavailable in paper mode, even when credential-shaped environment variables
+are present. Reintroducing either SDK requires a real, reviewed implementation,
+focused evals, and a clean dependency audit.
