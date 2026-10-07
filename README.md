@@ -66,6 +66,8 @@ The app deliberately separates:
 
 ## ▶️ Quick start
 
+Requires **Node 24.x** (see `.nvmrc` and `package.json` engines).
+
 ```bash
 npm install
 npm run dev
