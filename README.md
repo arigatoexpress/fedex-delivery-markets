@@ -1,7 +1,6 @@
 # 🚚 Delivery Markets Lab
 
 > A **paper-only, synthetic-data** demo exploring delivery-time prediction markets — **no real money, no real tracking, no live trading.**
-> Built by the **AI Efficiency team** as a hands-on **governance conversation starter.**
 
 [![CI](https://github.com/arigatoexpress/fedex-delivery-markets/actions/workflows/ci.yml/badge.svg)](https://github.com/arigatoexpress/fedex-delivery-markets/actions/workflows/ci.yml)
 [![Last commit](https://img.shields.io/github/last-commit/arigatoexpress/fedex-delivery-markets/main)](https://github.com/arigatoexpress/fedex-delivery-markets/commits/main)
@@ -10,13 +9,22 @@
 [![Stack](https://img.shields.io/badge/stack-TypeScript%20·%20React%2019%20·%20Hono-3178c6)](#)
 
 > [!IMPORTANT]
-> **This is a paper-only prototype using synthetic (made-up) data.** It is **not** connected to FedEx systems, handles **no** real customer data, moves **no** real money, and does **no** live trading. It exists to *learn and to align on governance* **before** anything real is built. See [Safety posture](#-safety-posture).
+> **This is a paper-only prototype using synthetic (made-up) data.** It is **not** connected to FedEx systems, handles **no** real customer data, moves **no** real money, and does **no** live trading. It exists to learn and to make governance questions concrete before anything real is considered.
+
+## Product boundary
+
+Delivery Markets is a **standalone application**. It is not part of Sapphire Nexus and it is not the RECON station-operations dashboard.
+
+- **FedEx manager enablement / prompts / souls:** [`arigatoexpress/Ops-AI-Library`](https://github.com/arigatoexpress/Ops-AI-Library)
+- **Delivery Markets source/runtime:** this repository
+- **Sapphire Nexus:** separate company-neutral intelligence platform
+- **RECON:** separate station-operations decision-support application
+
+The detailed source/runtime/GCP separation is in [`docs/PRODUCT_BOUNDARY.md`](docs/PRODUCT_BOUNDARY.md).
 
 ---
 
-## 👀 For the AI Governance review — start here
-
-A short, self-contained reading set for today's session:
+## 👀 For governance review — start here
 
 | Topic | Document |
 |------|----------|
@@ -27,55 +35,58 @@ A short, self-contained reading set for today's session:
 | 🧩 Private-market product plan | [docs/PRIVATE_MARKET_PRODUCT_PLAN.md](docs/PRIVATE_MARKET_PRODUCT_PLAN.md) |
 | 🏛️ Architecture | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | 🔬 Research background | [docs/RESEARCH.md](docs/RESEARCH.md) |
-| 🤝 Non-technical Ops Hub (Obsidian) | [see below](#-ops-hub-for-non-technical-ops-managers) |
+| 🧱 Product / GCP boundary | [docs/PRODUCT_BOUNDARY.md](docs/PRODUCT_BOUNDARY.md) |
 
 ---
 
-## 🟢 Live status & newest updates
+## 🟢 Live repository status
 
-Everything in this section refreshes **automatically** — no stale snapshots to maintain:
-
-- ✅ **Build health** — the **CI** badge above is green when `main` is healthy.
-- 🕑 **Recency** — the **last-commit** badge above shows when the repo last changed.
+- ✅ **Build health** — the CI badge above is green when `main` is healthy.
+- 🕑 **Recency** — the last-commit badge shows when the repo last changed.
 - 📜 **Recent changes** → [commit history](https://github.com/arigatoexpress/fedex-delivery-markets/commits/main)
 - 🔀 **In-flight work** → [open pull requests](https://github.com/arigatoexpress/fedex-delivery-markets/pulls)
 - 🏃 **Pipeline runs** → [GitHub Actions](https://github.com/arigatoexpress/fedex-delivery-markets/actions)
 - 🔒 **Dependency security** → [Dependabot alerts](https://github.com/arigatoexpress/fedex-delivery-markets/security/dependabot)
 
 > [!NOTE]
-> **Recent hardening (July 2026):** supply-chain wave — `@grpc/grpc-js` HIGH crash/DoS overridden ([#26](https://github.com/arigatoexpress/fedex-delivery-markets/pull/26)); stale vuln overrides refreshed + CI `npm audit` gate scoped to critical ([#20](https://github.com/arigatoexpress/fedex-delivery-markets/pull/20)); hono/vite/esbuild bumped past remaining advisories; Dependabot batch merged (#5–#11, #21–#22). Earlier (June 2026): critical/high CVEs remediated ([#13](https://github.com/arigatoexpress/fedex-delivery-markets/pull/13)); Actions pinned to commit SHAs; minimal workflow permissions ([#4](https://github.com/arigatoexpress/fedex-delivery-markets/pull/4)). Every pull request runs `typecheck + tests + build`.
+> Recent hardening includes supply-chain dependency patches, removal of readiness-only market SDKs, pinned Actions, minimal workflow permissions, and a CI gate covering typecheck, tests, and build.
 
 ---
 
 ## What this does
 
-A recipient enters a **synthetic** tracking number, claims demo access, and views **YES/NO** markets tied to estimated delivery windows. They can quote a private AMM, submit **paper** (practice) orders, and preview testnet-compatible calldata — all without touching real customer data or live exchanges.
+A user selects a **synthetic** demo shipment, claims demo recipient access, and views **YES/NO** paper markets tied to estimated delivery windows. They can quote the private AMM, submit **paper** practice orders, and preview testnet-compatible calldata — all without touching real customer data or live exchanges.
 
-The app deliberately **separates** synthetic data from production data, paper simulation from real money, and prototype learning from approved deployment — so leaders can have a concrete, safe governance conversation.
+The app deliberately separates:
 
-*New to the concept? The [Ops Hub](#-ops-hub-for-non-technical-ops-managers) explains it in plain English with visual maps.*
+- synthetic data from production data;
+- paper simulation from real money;
+- testnet previews from transaction submission;
+- prototype learning from approved deployment.
 
 ## ▶️ Quick start
 
 ```bash
-npm install      # install dependencies
-npm run dev      # run the full-stack dev server (API + Vite UI)
+npm install
+npm run dev
 ```
 
 Open `http://127.0.0.1:5178`. For a production-style build:
 
 ```bash
 npm run build
-NODE_ENV=production npm run start    # then open http://127.0.0.1:4747
+NODE_ENV=production npm run start
 ```
+
+Then open `http://127.0.0.1:4747`.
 
 ### Demo tracking numbers
 
 | Number | State | What it shows |
 |--------|-------|----------------|
-| `771234567890` | Pre-hub | Markets **open** — you can take a side |
-| `882345678901` | Hub-arrived | Markets **locked** |
-| `993456789012` | Delivered | Markets **resolved** (final outcome) |
+| `771234567890` | Pre-hub | Paper markets open |
+| `882345678901` | Hub-arrived | Paper markets locked |
+| `993456789012` | Delivered | Paper markets resolved |
 
 ## ✅ Verify
 
@@ -85,26 +96,20 @@ npm run contracts:build
 npm run browser:smoke
 ```
 
-## 🤝 Ops Hub (for non-technical ops managers)
-
-A companion **Obsidian knowledge base** lives in [**`ops-hub/`**](ops-hub/) — a plain-English, visual handbook for ops managers: a **Canvas** system map, **Excalidraw** route maps, auto-updating **dashboards**, step-by-step **demo runbooks**, a safety/incident guide, a glossary & FAQ, and one-click setup for Windows/Mac/Linux + OneDrive/Google Drive. The **Dataview** and **Excalidraw** plugins are **pre-installed**, so it opens turnkey.
-
-**To use it:** install the free [Obsidian](https://obsidian.md) app → *Open folder as vault* → choose `ops-hub/` → click *Trust author and enable plugins* → open [`ops-hub/00 — START HERE.md`](ops-hub/00%20%E2%80%94%20START%20HERE.md).
-
-**Just browsing on GitHub?** The written guides render right here — start with [`ops-hub/Guides/What is Delivery Markets Lab.md`](ops-hub/Guides/What%20is%20Delivery%20Markets%20Lab.md), [`ops-hub/Guides/Safety & What This Is NOT.md`](ops-hub/Guides/Safety%20%26%20What%20This%20Is%20NOT.md), and the [`ops-hub/Runbooks/`](ops-hub/Runbooks/) folder. *(The Canvas/Excalidraw maps need the Obsidian app to view.)*
-
 ## 🗂️ Key paths
 
 | Path | What it is |
 |------|------------|
 | `src/server/` | Hono API routes, store, and market logic |
-| `src/client/` | React + Vite frontend |
-| `contracts/` | Solidity contracts (paper-only) |
-| `data/` | Append-only paper orders, oracle events, and access grants |
+| `src/` | React + Vite frontend and shared application code |
+| `contracts/` | Solidity contracts used for paper/testnet-readiness experiments |
 | `docs/` | API docs, AMM math, pilot plan, security posture, and runbooks |
-| `infra/` | Docker Compose and Render blueprints |
+| `infra/` | Deployment/infrastructure references |
+| `ops-hub/` | **Legacy companion material**; manager adoption content now belongs in Ops AI Library |
 
-See [docs/API.md](docs/API.md) and [docs/AMM_MATH.md](docs/AMM_MATH.md) for engineering detail, and [AGENTS.md](AGENTS.md) for agent collaborators.
+The `ops-hub/` directory remains only as historical context for this prototype. Do not add new general manager-training material there; contribute that work to [`Ops-AI-Library`](https://github.com/arigatoexpress/Ops-AI-Library) instead.
+
+See [docs/API.md](docs/API.md), [docs/AMM_MATH.md](docs/AMM_MATH.md), [docs/PRODUCT_BOUNDARY.md](docs/PRODUCT_BOUNDARY.md), and [AGENTS.md](AGENTS.md).
 
 ## 🛡️ Safety posture
 
@@ -112,12 +117,13 @@ See [docs/API.md](docs/API.md) and [docs/AMM_MATH.md](docs/AMM_MATH.md) for engi
 - **No real tracking numbers or customer payloads.**
 - **No live trading.** No Robinhood, Polymarket, Kalshi, CoW, or Hedera order submission.
 - **No funds or settlement.** No server-side wallet signing, exchange routing, or customer wagering.
-- SDK packages are present for future testnet readiness only.
+- **No Sapphire runtime dependency.** This service owns its own deployment and configuration boundary.
+- Testnet/readiness code may construct previews, but no browser action or API route is permitted to sign or broadcast a live transaction.
 
 ## 📌 Status
 
-**Paper-only prototype.** Safe for local demo and governance review. Not connected to production FedEx systems and not production-deployed.
+**Paper-only prototype.** Safe for synthetic-data demo and governance review. It is not connected to production FedEx systems and should be deployed, when needed, only as its own isolated prototype service.
 
 ---
 
-<sub>Maintained by the **AI Efficiency team** · paper-only / synthetic data · for the live state of this repo, see the [badges](#-delivery-markets-lab) and [commit history](https://github.com/arigatoexpress/fedex-delivery-markets/commits/main) above.</sub>
+<sub>Standalone research prototype · paper-only / synthetic data · current FedEx manager enablement lives in [Ops AI Library](https://github.com/arigatoexpress/Ops-AI-Library).</sub>

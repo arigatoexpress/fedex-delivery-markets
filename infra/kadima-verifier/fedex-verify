@@ -1,0 +1,30 @@
+#!/bin/sh
+set -eu
+umask 077
+
+fail() {
+  printf '%s\n' 'fedex verifier policy rejected input' >&2
+  exit 64
+}
+
+[ "$#" -eq 0 ] || fail
+[ "$(id -u)" = 65532 ] && [ "$(id -g)" = 65532 ] && [ "$(id -G)" = 65532 ] || fail
+cd /workspace
+for candidate in package.json package-lock.json; do
+  [ -f "$candidate" ] && [ ! -L "$candidate" ] || fail
+done
+sha256sum --check --strict /opt/fedex-deps/SHA256SUMS >/dev/null 2>&1 || fail
+if [ -e node_modules ] || [ -L node_modules ]; then
+  fail
+fi
+mkdir -p /workspace/tmp /tmp/fedex-vite-cache /tmp/fedex-vite-temp /tmp/npm-cache
+chmod 700 /workspace/tmp /tmp/fedex-vite-cache /tmp/fedex-vite-temp /tmp/npm-cache
+ln -s /opt/fedex-deps/node_modules node_modules
+exec env -i \
+  HOME=/tmp TMPDIR=/workspace/tmp CI=1 TZ=UTC LANG=C.UTF-8 NO_COLOR=1 \
+  SOURCE_DATE_EPOCH=1786731161 \
+  PATH=/opt/fedex-deps/node_modules/.bin:/usr/local/bin:/usr/bin:/bin \
+  npm_config_cache=/tmp/npm-cache npm_config_offline=true \
+  npm_config_ignore_scripts=true npm_config_audit=false npm_config_fund=false \
+  npm_config_update_notifier=false \
+  npm run verify
