@@ -8,3 +8,8 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    # Keep @types/node on the 24 line so it matches package.json engines.node.
+    ignore:
+      - dependency-name: "@types/node"
+        update-types:
+          - "version-update:semver-major"
