@@ -25,7 +25,7 @@
   },
   "dependencies": {
     "@cowprotocol/cow-sdk": "^9.3.0",
-    "@hono/node-server": "^2.1.5",
+    "@hono/node-server": "^2.1.6",
     "hono": "^4.13.13",
     "lucide-react": "^1.61.0",
     "react": "^19.1.0",
