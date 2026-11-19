@@ -24,7 +24,7 @@
     "verify": "npm run typecheck && npm run test && npm run build"
   },
   "dependencies": {
-    "@cowprotocol/cow-sdk": "^9.3.3",
+    "@cowprotocol/cow-sdk": "^9.3.5",
     "@hono/node-server": "^2.1.6",
     "hono": "^4.13.18",
     "lucide-react": "^1.66.0",
