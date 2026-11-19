@@ -43,7 +43,7 @@
     "playwright": "^1.65.0",
     "solc": "^0.8.37",
     "typescript": "^7.0.2",
-    "vite": "^8.3.5",
+    "vite": "^8.3.8",
     "vitest": "^5.1.0"
   },
   "overrides": {
